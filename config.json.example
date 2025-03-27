@@ -1,0 +1,18 @@
+{
+    "known_faces_dir": "known_faces",
+    "model_path": "yolov8n-face.pt",
+    "detection_interval": 1,
+    "threshold": 0.7,
+    "confidence_threshold": 0.7,
+    "show_feed": true,
+    "cameras": [0],
+    "log_file": "sentinel_log.txt",
+    "notification_email": {
+        "sender": "your_email@example.com",
+        "receiver": "recipient@example.com",
+        "smtp_server": "smtp.example.com",
+        "smtp_port": 587,
+        "username": "your_email@example.com",
+        "password": "your_password"
+    }
+}
