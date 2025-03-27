@@ -1,4 +1,4 @@
-# Boss Sentinel 监控系统
+# Anti-BossShield 监控系统
 
 基于YOLOv8的人脸识别监控系统，当检测到特定人物时自动锁定Windows屏幕。
 
