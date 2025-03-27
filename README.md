@@ -22,26 +22,40 @@ pip install -r requirements.txt
    - 为每个监控目标创建单独文件夹
    - 在文件夹中放入多张该人物的照片
 
-2. 修改config.json配置：
+2. 复制示例配置文件：
+```bash
+cp config.json.example config.json
+```
+
+3. 修改config.json配置：
    - `known_faces_dir`: 人脸图片目录
    - `model_path`: YOLO模型路径
    - `detection_interval`: 检测间隔(秒)
 
-3. 运行系统：
+4. 运行系统：
 ```bash
 python -m boss_sentinel.main
 ```
 
-## 文件结构
+## 当前项目结构
 
 ```
 ├── boss_sentinel/       # 核心代码
+│   ├── __init__.py
+│   ├── config.py
+│   ├── detector.py
+│   ├── locker.py
+│   ├── logger.py
+│   ├── main.py
+│   ├── monitor.py
+│   ├── notifier.py
+│   └── recognizer.py
 ├── known_faces/         # 目标人物照片
-│   ├── boss/            # 人物1
-│   └── colleague/       # 人物2
+│   └── boss/
 ├── detections/          # 检测截图
-├── config.json          # 配置文件
+├── config.json.example  # 配置文件示例
 ├── requirements.txt     # 依赖文件
+├── setup.py             # 安装脚本
 └── README.md            # 说明文档
 ```
 
@@ -50,3 +64,4 @@ python -m boss_sentinel.main
 - 需要Windows系统
 - 确保摄像头可用
 - 首次使用需下载yolov8n-face.pt模型
+- 配置文件需从config.json.example复制创建
