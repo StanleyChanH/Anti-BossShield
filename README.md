@@ -1,6 +1,6 @@
 # Anti-BossShield 监控系统
 
-基于YOLOv8的人脸识别监控系统，当检测到特定人物时自动锁定Windows屏幕。
+基于YOLOv8的人脸识别监控系统，当检测到特定人物时自动锁定Windows屏幕。反老板专用，有打工人提供更多场景，我继续增加功能，欢迎大家提出建议。
 
 ## 功能特性
 
@@ -76,29 +76,5 @@ python -m boss_sentinel
 - 首次使用需下载yolov8n-face.pt模型
 - 配置文件需从config.json.example复制创建
 
-## 打包为EXE
-
-1. 安装PyInstaller:
-```bash
-pip install pyinstaller
-```
-
-2. 执行打包(包含所有依赖):
-```bash
-pyinstaller --onefile --windowed --name BossSentinel --add-data "boss_sentinel;boss_sentinel" --hidden-import="cv2" --hidden-import="ultralytics" --paths="d:\Anti-BossShield" boss_sentinel/__main__.py
-```
-
-3. 打包结果:
-   - 生成文件: dist/BossSentinel.exe (约500MB)
-   - 生成目录: build/ (可删除)
-
-4. 使用说明:
-   - 将config.json.example复制为config.json并配置
-   - 创建known_faces目录并添加目标人物照片
-   - 双击BossSentinel.exe运行图形界面
-   - 首次运行会自动下载yolov8n-face.pt模型
-
-5. 注意事项:
-   - 打包过程可能需要10-15分钟
-   - 最终exe文件较大(包含所有依赖)
-   - 确保系统有足够内存运行
+## 终端使用
+- 简单打包了个exe文件，直接双击运行即可，不需要安装python环境。
