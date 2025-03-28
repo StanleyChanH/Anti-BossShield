@@ -33,30 +33,40 @@ cp config.json.example config.json
    - `detection_interval`: 检测间隔(秒)
 
 4. 运行系统：
+
+命令行模式：
 ```bash
 python -m boss_sentinel.main
 ```
 
-## 当前项目结构
+图形界面模式：
+```bash
+python -m boss_sentinel
+```
+
+5. GUI功能：
+- 启动/停止监控
+- 实时显示检测结果
+- 配置摄像头ID和置信度阈值
+- 查看日志输出
+
+## 项目结构 (优化版)
 
 ```
 ├── boss_sentinel/       # 核心代码
 │   ├── __init__.py
 │   ├── config.py
 │   ├── detector.py
-│   ├── locker.py
-│   ├── logger.py
-│   ├── main.py
-│   ├── monitor.py
-│   ├── notifier.py
-│   └── recognizer.py
-├── known_faces/         # 目标人物照片
+│   ├── gui.py          # 图形界面
+│   ├── main.py         # 主逻辑
+│   └── __main__.py     # 入口文件
+├── known_faces/        # 目标人物照片
 │   └── boss/
-├── detections/          # 检测截图
-├── config.json.example  # 配置文件示例
-├── requirements.txt     # 依赖文件
-├── setup.py             # 安装脚本
-└── README.md            # 说明文档
+├── detections/         # 检测截图
+├── config.json.example # 配置文件示例
+├── requirements.txt    # 依赖文件
+├── setup.py            # 安装脚本
+└── README.md           # 说明文档
 ```
 
 ## 注意事项
@@ -65,3 +75,30 @@ python -m boss_sentinel.main
 - 确保摄像头可用
 - 首次使用需下载yolov8n-face.pt模型
 - 配置文件需从config.json.example复制创建
+
+## 打包为EXE
+
+1. 安装PyInstaller:
+```bash
+pip install pyinstaller
+```
+
+2. 执行打包(包含所有依赖):
+```bash
+pyinstaller --onefile --windowed --name BossSentinel --add-data "boss_sentinel;boss_sentinel" --hidden-import="cv2" --hidden-import="ultralytics" --paths="d:\Anti-BossShield" boss_sentinel/__main__.py
+```
+
+3. 打包结果:
+   - 生成文件: dist/BossSentinel.exe (约500MB)
+   - 生成目录: build/ (可删除)
+
+4. 使用说明:
+   - 将config.json.example复制为config.json并配置
+   - 创建known_faces目录并添加目标人物照片
+   - 双击BossSentinel.exe运行图形界面
+   - 首次运行会自动下载yolov8n-face.pt模型
+
+5. 注意事项:
+   - 打包过程可能需要10-15分钟
+   - 最终exe文件较大(包含所有依赖)
+   - 确保系统有足够内存运行

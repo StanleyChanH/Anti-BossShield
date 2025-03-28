@@ -82,9 +82,10 @@ class BossSentinel:
             self.logger.warning("没有加载任何人脸图片")
         return known_faces
 
-    def run(self):
-        """运行监控系统"""
+    def start_monitoring(self, callback=None):
+        """运行监控系统(支持回调)"""
         self.logger.info("启动Boss哨兵系统")
+        self.callback = callback
         try:
             while True:
                 self.monitor()
@@ -94,6 +95,10 @@ class BossSentinel:
         except Exception as e:
             self.logger.error(f"监控出错: {e}")
             raise
+
+    def run(self):
+        """兼容旧接口"""
+        self.start_monitoring()
 
     def monitor(self):
         """执行监控逻辑"""
@@ -125,6 +130,8 @@ class BossSentinel:
                 self.save_detection(frame, person_name)
                 self.lock_screen()
                 self.send_alert(person_name)
+                if hasattr(self, 'callback') and self.callback:
+                    self.callback(person_name)
                 return
 
     def is_boss_detected(self, detection_result):
