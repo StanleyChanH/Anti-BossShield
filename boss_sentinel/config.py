@@ -50,3 +50,30 @@ def load_config(config_dict: Dict[str, Any]) -> SentinelConfig:
         log_file=config_dict.get('log_file'),
         notification_email=email_config
     )
+
+def save_config(config: SentinelConfig, file_path: str) -> None:
+    """保存配置到文件"""
+    import json
+    config_dict = {
+        'known_faces_dir': config.known_faces_dir,
+        'model_path': config.model_path,
+        'detection_interval': config.detection_interval,
+        'threshold': config.threshold,
+        'confidence_threshold': config.confidence_threshold,
+        'show_feed': config.show_feed,
+        'cameras': config.cameras,
+        'log_file': config.log_file
+    }
+    
+    if config.notification_email:
+        config_dict['notification_email'] = {
+            'sender': config.notification_email.sender,
+            'receiver': config.notification_email.receiver,
+            'smtp_server': config.notification_email.smtp_server,
+            'smtp_port': config.notification_email.smtp_port,
+            'username': config.notification_email.username,
+            'password': config.notification_email.password
+        }
+    
+    with open(file_path, 'w') as f:
+        json.dump(config_dict, f, indent=4)

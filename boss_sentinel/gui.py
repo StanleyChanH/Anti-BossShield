@@ -57,6 +57,15 @@ class ConfigGroup(QGroupBox):
             "cameras": [int(cam) for cam in self.cameras.text().split(",")],
             "confidence_threshold": float(self.confidence_threshold.text())
         }
+        
+    def load_config(self, config_dict: dict):
+        """加载配置到UI"""
+        self.model_path.setText(config_dict.get('model_path', 'yolov8n-face.pt'))
+        self.known_faces_dir.setText(config_dict.get('known_faces_dir', 'known_faces'))
+        self.log_file.setText(config_dict.get('log_file', 'sentinel_log.txt'))
+        self.detection_interval.setText(str(config_dict.get('detection_interval', 5)))
+        self.cameras.setText(','.join(map(str, config_dict.get('cameras', [0]))))
+        self.confidence_threshold.setText(str(config_dict.get('confidence_threshold', 0.7)))
 
 class MainWindow(QMainWindow):
     """主窗口"""
@@ -79,13 +88,19 @@ class MainWindow(QMainWindow):
         btn_layout = QHBoxLayout()
         self.start_btn = QPushButton("启动")
         self.stop_btn = QPushButton("停止")
+        self.load_btn = QPushButton("加载配置")
+        self.save_btn = QPushButton("保存配置")
         self.stop_btn.setEnabled(False)
         
         self.start_btn.clicked.connect(self.start_sentinel)
         self.stop_btn.clicked.connect(self.stop_sentinel)
+        self.load_btn.clicked.connect(self.load_config_from_file)
+        self.save_btn.clicked.connect(self.save_config_to_file)
         
         btn_layout.addWidget(self.start_btn)
         btn_layout.addWidget(self.stop_btn)
+        btn_layout.addWidget(self.load_btn)
+        btn_layout.addWidget(self.save_btn)
         layout.addLayout(btn_layout)
         
         # 日志显示
@@ -124,6 +139,38 @@ class MainWindow(QMainWindow):
     def update_log(self, message):
         """更新日志"""
         self.log_display.append(message)
+        
+    def load_config_from_file(self):
+        """从文件加载配置"""
+        from .config import load_config
+        import json
+        
+        try:
+            with open('config.json', 'r') as f:
+                config_dict = json.load(f)
+                self.config_group.load_config(config_dict)
+                self.log_display.append("配置已从文件加载")
+        except Exception as e:
+            self.log_display.append(f"加载配置失败: {str(e)}")
+    
+    def save_config_to_file(self):
+        """保存配置到文件"""
+        from .config import save_config, SentinelConfig
+        
+        try:
+            config_dict = self.config_group.get_config()
+            config = SentinelConfig(
+                known_faces_dir=config_dict['known_faces_dir'],
+                model_path=config_dict['model_path'],
+                detection_interval=config_dict['detection_interval'],
+                confidence_threshold=config_dict['confidence_threshold'],
+                cameras=config_dict['cameras'],
+                log_file=config_dict['log_file']
+            )
+            save_config(config, 'config.json')
+            self.log_display.append("配置已保存到文件")
+        except Exception as e:
+            self.log_display.append(f"保存配置失败: {str(e)}")
 
 def run_gui():
     """运行GUI"""
