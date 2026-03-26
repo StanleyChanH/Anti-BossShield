@@ -20,32 +20,65 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
-known_faces/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*.sublime-workspace
+*.sublime-project
 
 # Logs and databases
 *.log
 *.sqlite
 sentinel_log.txt
+test_sentinel.log
 
 # Detection images
 detections/
 
+# User data directories
+known_faces/
+custom_faces/
+test_faces/
+faces/
+
 # Environment
 .env
-.venv
+.venv/
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+.python-version
+
+# Config (users should copy from config.json.example)
 config.json
+
+# Build artifacts
+dist/
+build/
+*.spec
 
 # System
 .DS_Store
 Thumbs.db
+desktop.ini
+
+# UV
+.uv/
+uv.lock
+
+CLAUDE.md

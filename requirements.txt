@@ -9,3 +9,5 @@ pywin32>=300
 Pillow>=9.0.0
 pyinstaller>=6.0.0
 PyQt5>=5.15.0
+# 性能优化相关
+torch>=2.0.0  # 建议使用更新的PyTorch版本以获得更好的性能

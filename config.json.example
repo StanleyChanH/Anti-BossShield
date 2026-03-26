@@ -7,6 +7,8 @@
     "show_feed": true,
     "cameras": [0],
     "log_file": "sentinel_log.txt",
+    "frame_skip": 3,
+    "use_gpu": true,
     "notification_email": {
         "sender": "your_email@example.com",
         "receiver": "recipient@example.com",

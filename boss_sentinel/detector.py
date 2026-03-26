@@ -2,18 +2,26 @@ from ultralytics import YOLO
 import cv2
 from typing import Optional, List
 import numpy as np
+import torch
 
 class FaceDetector:
     """基于YOLOv8的人脸检测器"""
-    
-    def __init__(self, model_path: str = "yolov8n-face.pt"):
+
+    def __init__(self, model_path: str = "yolov8n-face.pt", use_gpu: bool = True):
         """
         初始化人脸检测器
-        
+
         参数:
             model_path: YOLOv8模型路径
+            use_gpu: 是否使用GPU加速
         """
+        # 检测CUDA是否可用
+        self.device = 'cuda:0' if (use_gpu and torch.cuda.is_available()) else 'cpu'
+        print(f"使用设备: {self.device}")
+
+        # 加载模型到指定设备
         self.model = YOLO(model_path)
+        self.model.to(self.device)
         
     def detect(self, frame: np.ndarray, confidence_threshold: float = 0.7) -> Optional[List[List[float]]]:
         """

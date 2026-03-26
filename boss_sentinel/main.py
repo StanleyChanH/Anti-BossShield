@@ -1,193 +1,113 @@
-import os
-import cv2
-import time
-import json
-import logging
-from logging.handlers import RotatingFileHandler
-from ultralytics import YOLO
-from pathlib import Path
-from datetime import datetime
+"""
+Boss Sentinel 主入口模块
+
+注意: BossSentinel 类已废弃，请直接使用 SentinelMonitor。
+此模块保留仅为向后兼容。
+"""
+import warnings
+
+# 废弃警告
+warnings.warn(
+    "BossSentinel 类已废弃，请使用 SentinelMonitor。"
+    "参见 monitor.py 和 config.py 获取新接口。",
+    DeprecationWarning,
+    stacklevel=2
+)
+
 
 class BossSentinel:
-    def __init__(self, config_path="config.json"):
-        self.load_config(config_path)
-        self.setup_logging()
-        self.verify_paths()
-        self.model = YOLO(self.config["model_path"])
-        self.known_faces = self.load_known_faces()
-        self.detection_dir = Path("detections")
-        self.detection_dir.mkdir(exist_ok=True)
-        
-    def load_config(self, config_path):
-        """加载配置文件"""
-        try:
-            with open(config_path) as f:
-                self.config = json.load(f)
-        except Exception as e:
-            raise RuntimeError(f"加载配置文件失败: {e}")
+    """
+    [已废弃] 请使用 SentinelMonitor 替代
 
-    def setup_logging(self):
-        """配置日志系统(带轮转功能)"""
-        # 设置日志文件最大1MB，保留3个备份
-        handler = RotatingFileHandler(
-            self.config["log_file"],
-            maxBytes=1024*1024,
-            backupCount=3,
-            encoding='utf-8'
-        )
-        handler.setFormatter(logging.Formatter(
-            "%(asctime)s - %(levelname)s - %(message)s"
-        ))
-        
-        self.logger = logging.getLogger("BossSentinel")
-        self.logger.setLevel(logging.DEBUG)
-        self.logger.addHandler(handler)
-        self.logger.debug("日志系统初始化完成(带轮转功能)")
+    此类保留仅为向后兼容，内部委托给 SentinelMonitor 实现。
+    """
 
-    def verify_paths(self):
-        """验证所有路径是否存在"""
-        required_paths = [
-            ("known_faces_dir", "known_faces目录不存在"),
-            ("model_path", "模型文件不存在")
-        ]
-        
-        for key, error_msg in required_paths:
-            path = Path(self.config[key])
-            if not path.exists():
-                raise FileNotFoundError(f"{error_msg}: {path}")
+    def __init__(self, config_path="config.json", lazy_load=True):
+        """
+        初始化哨兵系统（已废弃）
 
-    def load_known_faces(self):
-        """加载已知人脸(支持多人物)"""
-        known_dir = Path(self.config["known_faces_dir"])
-        if not known_dir.exists():
-            self.logger.error(f"目录不存在: {known_dir}")
-            return {}
-            
-        known_faces = {}
-        for person_dir in known_dir.iterdir():
-            if person_dir.is_dir():
-                faces = []
-                for img_path in person_dir.glob("*.jpg"):
-                    img = cv2.imread(str(img_path))
-                    if img is not None:
-                        self.logger.info(f"加载 {person_dir.name} 的人脸图片: {img_path.name}")
-                        faces.append(img)
-                    else:
-                        self.logger.warning(f"无法加载图片: {img_path}")
-                
-                if faces:
-                    known_faces[person_dir.name] = faces
-                    
-        if not known_faces:
-            self.logger.warning("没有加载任何人脸图片")
-        return known_faces
+        参数:
+            config_path: 配置文件路径
+            lazy_load: 是否延迟加载模型
+        """
+        import json
+        from .monitor import SentinelMonitor
+        from .config import SentinelConfig, load_config
+
+        # 加载配置
+        with open(config_path) as f:
+            config_dict = json.load(f)
+        self.config_dict = config_dict
+        self._config_obj: SentinelConfig = load_config(config_dict)
+
+        # 委托给 SentinelMonitor
+        self._monitor = SentinelMonitor(self._config_obj, lazy_load=lazy_load)
+        self._models_loaded = self._monitor._models_loaded
+
+    def initialize_models(self):
+        """初始化模型（已废弃）"""
+        self._monitor.initialize_models()
+        self._models_loaded = True
+
+    def ensure_models_loaded(self):
+        """确保模型已加载（已废弃）"""
+        self._monitor.ensure_models_loaded()
+        self._models_loaded = self._monitor._models_loaded
 
     def start_monitoring(self, callback=None):
-        """运行监控系统(支持回调)"""
-        self.logger.info("启动Boss哨兵系统")
-        self.callback = callback
-        try:
-            while True:
-                self.monitor()
-                time.sleep(self.config["detection_interval"])
-        except KeyboardInterrupt:
-            self.logger.info("手动停止监控")
-        except Exception as e:
-            self.logger.error(f"监控出错: {e}")
-            raise
+        """启动监控（已废弃）"""
+        self._monitor.run(callback=callback)
 
     def run(self):
-        """兼容旧接口"""
-        self.start_monitoring()
+        """运行（已废弃）"""
+        self._monitor.run()
 
-    def monitor(self):
-        """执行监控逻辑"""
-        for cam_id in self.config["cameras"]:
-            cap = cv2.VideoCapture(cam_id)
-            if not cap.isOpened():
-                self.logger.error(f"无法打开摄像头 {cam_id}")
-                continue
-                
-            ret, frame = cap.read()
-            if ret:
-                self.process_frame(frame)
-                
-            cap.release()
+    # 保留旧的属性访问以保持兼容性
+    @property
+    def model(self):
+        """兼容旧API: 获取YOLO模型"""
+        return self._monitor.detector.model if self._monitor.detector else None
 
-    def process_frame(self, frame):
-        """处理视频帧"""
-        results = self.model(frame)
-        self.logger.info(f"检测结果: {results}")
-        
-        for result in results:
-            boxes = result.boxes
-            if boxes is not None:
-                self.logger.info(f"检测到{len(boxes)}个人脸框，置信度: {boxes.conf}")
-                
-            is_detected, person_name = self.is_boss_detected(result)
-            if is_detected:
-                self.logger.info(f"检测到匹配人物: {person_name}，准备锁屏")
-                self.save_detection(frame, person_name)
-                self.lock_screen()
-                self.send_alert(person_name)
-                if hasattr(self, 'callback') and self.callback:
-                    self.callback(person_name)
-                return
+    @property
+    def face_recognizer(self):
+        """兼容旧API: 获取人脸识别器"""
+        return self._monitor.recognizer
 
-    def is_boss_detected(self, detection_result):
-        """判断是否检测到目标人物"""
-        if not self.known_faces:
-            self.logger.warning("没有加载已知人脸数据")
-            return False, None
-            
-        boxes = detection_result.boxes
-        if boxes is None:
-            return False, None
-            
-        # 获取检测到的人脸区域
-        for box in boxes:
-            x1, y1, x2, y2 = box.xyxy[0].tolist()
-            conf = box.conf.item()
-            
-            if conf > self.config["confidence_threshold"]:
-                # TODO: 实现实际的人脸特征匹配
-                # 目前简单返回第一个匹配的人物
-                for person_name in self.known_faces:
-                    self.logger.info(f"检测到匹配人物: {person_name}")
-                    return True, person_name
-                    
-        return False, None
+    @property
+    def known_faces(self):
+        """兼容旧API: 获取已知人脸特征"""
+        return self._monitor.recognizer.known_embeddings if self._monitor.recognizer else None
 
-    def lock_screen(self):
-        """锁定屏幕"""
-        os.system("rundll32.exe user32.dll,LockWorkStation")
-        self.logger.info("检测到老板，已锁定屏幕")
+    @property
+    def config(self):
+        """兼容旧API: 获取配置字典"""
+        return self.config_dict
 
-    def save_detection(self, frame, person_name):
-        """保存检测到的人物截图"""
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-        filename = f"{person_name}_{timestamp}.jpg"
-        save_path = self.detection_dir / filename
-        
-        # 保存图片
-        cv2.imwrite(str(save_path), frame)
-        self.logger.info(f"已保存检测截图: {save_path}")
-        
-        # 清理旧文件，最多保留20张
-        detection_files = sorted(self.detection_dir.glob("*.jpg"), key=os.path.getmtime)
-        if len(detection_files) > 20:
-            for old_file in detection_files[:-20]:
-                old_file.unlink()
-                self.logger.debug(f"清理旧文件: {old_file}")
+    @config.setter
+    def config(self, value):
+        """兼容旧API: 设置配置"""
+        if isinstance(value, dict):
+            self.config_dict = value
+            from .config import load_config
+            self._config_obj = load_config(value)
+            self._monitor.config = self._config_obj
 
-    def send_alert(self, person_name):
-        """发送警报"""
-        self.logger.warning(f"警报: 检测到 {person_name}!")
-        # TODO: 实现邮件/通知发送
+
+def main():
+    """CLI入口点"""
+    import argparse
+    parser = argparse.ArgumentParser(description="Boss哨兵系统")
+    parser.add_argument("--config", default="config.json", help="配置文件路径")
+    parser.add_argument("--gui", action="store_true", help="启动GUI界面")
+    args = parser.parse_args()
+
+    if args.gui:
+        from .gui import run_gui
+        run_gui()
+    else:
+        sentinel = BossSentinel(config_path=args.config)
+        sentinel.run()
+
 
 if __name__ == "__main__":
-    try:
-        sentinel = BossSentinel()
-        sentinel.run()
-    except Exception as e:
-            print(f"系统错误: {e}")
+    main()

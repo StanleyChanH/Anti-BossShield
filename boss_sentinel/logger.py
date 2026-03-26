@@ -17,7 +17,9 @@ class SentinelLogger:
         
     def _init_log_file(self):
         """初始化日志文件"""
-        os.makedirs(os.path.dirname(self.log_file), exist_ok=True)
+        log_dir = os.path.dirname(self.log_file)
+        if log_dir:  # 只有非空时才创建目录
+            os.makedirs(log_dir, exist_ok=True)
         with open(self.log_file, 'a') as f:
             f.write(f"\n\n=== 哨兵系统启动 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===\n")
             
