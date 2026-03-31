@@ -1,6 +1,6 @@
 [project]
 name = "boss-sentinel"
-version = "1.1.0"
+version = "0.0.2"
 description = "基于YOLOv8的Windows哨兵系统 - 人脸识别与自动锁屏"
 readme = "README.md"
 requires-python = ">=3.9,<3.13"
@@ -30,7 +30,7 @@ dependencies = [
     "torchvision>=0.15.0",
     "pywin32>=300",
     "Pillow>=9.0.0",
-    "PyQt5>=5.15.0",
+    "PyQt5>=5.15.0,<5.15.11",
 ]
 
 [project.optional-dependencies]
@@ -50,6 +50,9 @@ build-backend = "hatchling.build"
 
 [tool.uv]
 dev-dependencies = []
+required-environments = [
+    "sys_platform == 'win32' and platform_machine == 'AMD64'",
+]
 
 [tool.black]
 line-length = 100

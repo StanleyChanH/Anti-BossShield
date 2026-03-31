@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//d/Anti-BossShield-temp/**)",
+      "Bash(.venv/Scripts/python.exe -m PyInstaller BossSentinel.spec --noconfirm --clean)",
+      "Bash(powershell -Command \"Copy-Item -Path ''D:\\\\git项目\\\\Anti-BossShield'' -Destination ''D:\\\\Anti-BossShield-temp'' -Recurse -Force\")",
+      "Bash(pip install:*)",
+      "Bash(python -m nuitka --standalone --onefile --windows-console-mode=force --enable-plugin=pyqt5 --output-dir=nuitka_dist boss_sentinel/__main__.py)",
+      "Bash(.venv/Scripts/python.exe -m nuitka --standalone --onefile --windows-console-mode=force --enable-plugin=pyqt5 --output-dir=nuitka_dist boss_sentinel)",
+      "Bash(.venv/Scripts/pip install:*)",
+      "Bash(uv pip:*)",
+      "Bash(uv run:*)",
+      "Bash(powershell -Command \".\\\\.venv\\\\Scripts\\\\python.exe -m nuitka --standalone --onefile --windows-console-mode=force --enable-plugin=pyqt5 --output-dir=nuitka_dist boss_sentinel\")",
+      "Bash(.venv/Scripts/python -m pytest tests/test_config.py tests/test_tracker.py -v)",
+      "Bash(.venv/Scripts/python -m pytest tests/test_detector.py -v)",
+      "Bash(.venv/Scripts/python -m pytest tests/test_performance.py -v)",
+      "Bash(.venv/Scripts/python -m pytest tests/ -v)",
+      "Bash(rm -rf tests/ .pytest_cache/)",
+      "Bash(rm -f debug_torch.py test_import.py test_runpy.py nuitka-crash-report.xml sentinel_log.txt test_sentinel.log)"
+    ]
+  }
+}
