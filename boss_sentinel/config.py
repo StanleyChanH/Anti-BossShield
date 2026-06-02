@@ -30,6 +30,8 @@ class SentinelConfig:
     use_gpu: bool = True  # 是否使用GPU加速
     lock_cooldown: int = 30  # 锁屏后冷却秒数，冷却期内不重复锁屏
     notify_cooldown: int = 60  # 同一人通知冷却秒数
+    alert_sound: bool = True    # 是否播放告警声音
+    alert_tray: bool = True     # 是否显示托盘通知
 
     def __post_init__(self):
         """配置验证"""
@@ -126,7 +128,9 @@ def load_config(config_dict: Dict[str, Any]) -> SentinelConfig:
         frame_skip=config_dict.get('frame_skip', 3),
         use_gpu=config_dict.get('use_gpu', True),
         lock_cooldown=config_dict.get('lock_cooldown', 30),
-        notify_cooldown=config_dict.get('notify_cooldown', 60)
+        notify_cooldown=config_dict.get('notify_cooldown', 60),
+        alert_sound=config_dict.get('alert_sound', True),
+        alert_tray=config_dict.get('alert_tray', True)
     )
 
 
@@ -143,7 +147,9 @@ def save_config(config: SentinelConfig, file_path: str) -> None:
         'frame_skip': config.frame_skip,
         'use_gpu': config.use_gpu,
         'lock_cooldown': config.lock_cooldown,
-        'notify_cooldown': config.notify_cooldown
+        'notify_cooldown': config.notify_cooldown,
+        'alert_sound': config.alert_sound,
+        'alert_tray': config.alert_tray
     }
 
     if config.notification_email:

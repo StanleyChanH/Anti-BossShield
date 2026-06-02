@@ -115,6 +115,32 @@ class SentinelMonitor:
         last_time = self._last_notify_time.get(person_name, 0.0)
         return (time.time() - last_time) >= self.config.notify_cooldown
 
+    def _draw_overlay(self, frame: np.ndarray, tracks: dict) -> np.ndarray:
+        """在帧上绘制检测框和人名标注"""
+        display = frame.copy()
+
+        for track_id, track in tracks.items():
+            if track.disappeared > 0:
+                continue
+
+            x1, y1, x2, y2 = [int(v) for v in track.bbox]
+
+            if track.person_name:
+                color = (0, 0, 255)  # 红色 BGR - 目标人物
+                label = f"{track.person_name} ({track.similarity:.0%})"
+            else:
+                color = (0, 255, 0)  # 绿色 BGR - 未知人脸
+                label = "unknown"
+
+            cv2.rectangle(display, (x1, y1), (x2, y2), color, 2)
+
+            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
+            cv2.rectangle(display, (x1, y1 - th - 8), (x1 + tw + 4, y1), color, -1)
+            cv2.putText(display, label, (x1 + 2, y1 - 4),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+
+        return display
+
     def process_frame(self, frame: np.ndarray, camera_idx: int) -> bool:
         """
         处理摄像头帧（带帧跳过优化、人脸跟踪和识别缓存）
@@ -196,14 +222,14 @@ class SentinelMonitor:
 
         return detected
 
-    def run(self, callback: Optional[Callable[[str], None]] = None):
+    def run(self, callback: Optional[Callable[[str], None]] = None,
+            frame_callback: Optional[Callable[[np.ndarray], None]] = None):
         """
         运行监控系统
 
-        检测到目标后锁屏，冷却期过后继续监控，不会退出。
-
         参数:
             callback: 检测到目标人物时的回调函数
+            frame_callback: 每帧回调，传递带标注的画面（用于 GUI 内嵌预览）
         """
         self._callback = callback
         self.ensure_models_loaded()
@@ -212,7 +238,6 @@ class SentinelMonitor:
 
         try:
             while self.running:
-                # 检查配置热重载
                 if self._config_watcher:
                     self._config_watcher.check_for_changes()
 
@@ -221,17 +246,27 @@ class SentinelMonitor:
                     if not ret:
                         continue
 
-                    if self.process_frame(frame, idx):
-                        if self._should_lock():
-                            self.locker.lock()
-                            self._last_lock_time = time.time()
-                            self.logger.log(f"Screen locked, cooldown {self.config.lock_cooldown}s")
+                    detected = self.process_frame(frame, idx)
 
-                    if self.config.show_feed:
-                        cv2.imshow(f'Camera {idx} - Press Q to quit', frame)
+                    # 绘制标注
+                    overlay_frame = self._draw_overlay(frame, self.tracker.tracks)
 
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    break
+                    # 传递帧给调用方（GUI 模式）
+                    if frame_callback:
+                        frame_callback(overlay_frame)
+
+                    # CLI 模式：用 cv2.imshow 显示
+                    if self.config.show_feed and not frame_callback:
+                        cv2.imshow(f'Camera {idx} - Press Q to quit', overlay_frame)
+
+                    if detected and self._should_lock():
+                        self.locker.lock()
+                        self._last_lock_time = time.time()
+                        self.logger.log(f"Screen locked, cooldown {self.config.lock_cooldown}s")
+
+                if self.config.show_feed and not frame_callback:
+                    if cv2.waitKey(1) & 0xFF == ord('q'):
+                        break
 
         except KeyboardInterrupt:
             self.logger.log("User interrupted")

@@ -10,6 +10,8 @@
     "use_gpu": true,
     "lock_cooldown": 30,
     "notify_cooldown": 60,
+    "alert_sound": true,
+    "alert_tray": true,
     "notification_email": {
         "sender": "your_email@example.com",
         "receiver": "recipient@example.com",
