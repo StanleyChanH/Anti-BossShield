@@ -1,4 +1,5 @@
 import sys
+import time
 import numpy as np
 import cv2
 import winsound
@@ -6,8 +7,8 @@ from ctypes import windll
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                             QHBoxLayout, QPushButton, QTextEdit, QLabel,
                             QLineEdit, QFormLayout, QGroupBox, QProgressDialog,
-                            QSystemTrayIcon, QMenu, QAction, QStyle)
-from PyQt5.QtCore import QThread, pyqtSignal, Qt
+                            QSystemTrayIcon, QMenu, QAction, QStyle, QCheckBox)
+from PyQt5.QtCore import QThread, pyqtSignal, Qt, QTimer
 from PyQt5.QtGui import QIcon, QFont, QImage, QPixmap
 from .monitor import SentinelMonitor
 from .config import SentinelConfig
@@ -38,7 +39,6 @@ class SentinelThread(QThread):
             self.monitor.initialize_models()
 
             self.progress_signal.emit(80, "模型加载完成，准备启动监控...")
-            import time
             time.sleep(0.5)
 
             self.progress_signal.emit(90, "开始监控...")
@@ -64,7 +64,14 @@ class SentinelThread(QThread):
 
 
 class VideoWidget(QLabel):
-    """内嵌视频预览组件"""
+    """内嵌视频预览组件 — 带帧率节流和双缓冲
+
+    注意：update_frame（信号槽）和 _render_frame（定时器）都通过 Qt 事件循环
+    在主线程串行执行，无需互斥锁。
+    """
+
+    # 目标渲染帧率
+    TARGET_FPS = 30
 
     def __init__(self):
         super().__init__()
@@ -73,11 +80,28 @@ class VideoWidget(QLabel):
         self.setStyleSheet("background: black; color: gray; border: 1px solid #444;")
         self.setText("等待摄像头...")
 
+        # 双缓冲：最新帧由信号槽写入，定时器在主线程消费
+        self._latest_frame = None
+        self._render_timer = QTimer(self)
+        self._render_timer.timeout.connect(self._render_frame)
+        self._render_timer.start(int(1000 / self.TARGET_FPS))
+
     def update_frame(self, frame: np.ndarray):
-        """更新显示帧"""
+        """接收新帧（通过 QueuedConnection 在主线程执行）"""
+        self._latest_frame = frame.copy()  # 立即复制，避免后台覆写
+
+    def _render_frame(self):
+        """定时器回调：在主线程渲染最新帧"""
+        frame = self._latest_frame
+        self._latest_frame = None
+
+        if frame is None:
+            return
+
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        rgb = np.ascontiguousarray(rgb)
         h, w, ch = rgb.shape
-        qimg = QImage(rgb.data, w, h, ch * w, QImage.Format_RGB888)
+        qimg = QImage(rgb.data, w, h, ch * w, QImage.Format_RGB888).copy()
         scaled = QPixmap.fromImage(qimg).scaled(
             self.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
         )
@@ -85,6 +109,7 @@ class VideoWidget(QLabel):
 
     def clear_frame(self):
         """停止时清空画面"""
+        self._latest_frame = None
         self.clear()
         self.setText("监控已停止")
 
@@ -105,9 +130,14 @@ class ConfigGroup(QGroupBox):
         self.threshold = QLineEdit("0.7")
         self.confidence_threshold = QLineEdit("0.7")
         self.frame_skip = QLineEdit("3")
-        self.use_gpu = QLineEdit("true")
+        self.use_gpu = QCheckBox()
+        self.use_gpu.setChecked(True)
         self.lock_cooldown = QLineEdit("30")
         self.notify_cooldown = QLineEdit("60")
+        self.alert_sound = QCheckBox()
+        self.alert_sound.setChecked(True)
+        self.alert_tray = QCheckBox()
+        self.alert_tray.setChecked(True)
 
         layout.addRow("模型路径:", self.model_path)
         layout.addRow("人脸目录:", self.known_faces_dir)
@@ -119,10 +149,6 @@ class ConfigGroup(QGroupBox):
         layout.addRow("使用GPU加速:", self.use_gpu)
         layout.addRow("锁屏冷却(秒):", self.lock_cooldown)
         layout.addRow("通知冷却(秒):", self.notify_cooldown)
-
-        self.alert_sound = QLineEdit("true")
-        self.alert_tray = QLineEdit("true")
-
         layout.addRow("告警声音:", self.alert_sound)
         layout.addRow("托盘通知:", self.alert_tray)
 
@@ -138,11 +164,11 @@ class ConfigGroup(QGroupBox):
             threshold=float(self.threshold.text()),
             confidence_threshold=float(self.confidence_threshold.text()),
             frame_skip=int(self.frame_skip.text()),
-            use_gpu=self.use_gpu.text().lower() == "true",
+            use_gpu=self.use_gpu.isChecked(),
             lock_cooldown=int(self.lock_cooldown.text()),
             notify_cooldown=int(self.notify_cooldown.text()),
-            alert_sound=self.alert_sound.text().lower() == "true",
-            alert_tray=self.alert_tray.text().lower() == "true",
+            alert_sound=self.alert_sound.isChecked(),
+            alert_tray=self.alert_tray.isChecked(),
         )
 
     def load_config(self, config_dict: dict):
@@ -154,11 +180,11 @@ class ConfigGroup(QGroupBox):
         self.threshold.setText(str(config_dict.get('threshold', 0.7)))
         self.confidence_threshold.setText(str(config_dict.get('confidence_threshold', 0.7)))
         self.frame_skip.setText(str(config_dict.get('frame_skip', 3)))
-        self.use_gpu.setText(str(config_dict.get('use_gpu', True)).lower())
+        self.use_gpu.setChecked(config_dict.get('use_gpu', True))
         self.lock_cooldown.setText(str(config_dict.get('lock_cooldown', 30)))
         self.notify_cooldown.setText(str(config_dict.get('notify_cooldown', 60)))
-        self.alert_sound.setText(str(config_dict.get('alert_sound', True)).lower())
-        self.alert_tray.setText(str(config_dict.get('alert_tray', True)).lower())
+        self.alert_sound.setChecked(config_dict.get('alert_sound', True))
+        self.alert_tray.setChecked(config_dict.get('alert_tray', True))
 
 
 class MainWindow(QMainWindow):
@@ -167,8 +193,9 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Boss哨兵系统")
-        self.resize(600, 450)
+        self.resize(720, 560)
         self._is_monitoring = False
+        self._current_config: SentinelConfig = None  # 启动时缓存的配置
         self.init_ui()
         self.init_tray()
 
@@ -305,6 +332,7 @@ class MainWindow(QMainWindow):
     def start_sentinel(self):
         """启动哨兵"""
         config = self.config_group.get_config()
+        self._current_config = config  # 缓存配置，告警时直接使用
 
         # 创建进度对话框
         self.progress_dialog = QProgressDialog("正在初始化哨兵系统...", "取消", 0, 100, self)
@@ -339,6 +367,7 @@ class MainWindow(QMainWindow):
         self.log_display.append(f"错误: {error_msg}")
         self.tray_icon.showMessage("启动失败", error_msg, QSystemTrayIcon.Critical, 3000)
         self._is_monitoring = False
+        self._current_config = None
         self.update_ui_state("error")
 
     def on_init_finished(self):
@@ -357,11 +386,13 @@ class MainWindow(QMainWindow):
             self.status_label.setText("状态: 已停止")
             self.status_label.setStyleSheet("color: gray; font-weight: bold;")
             self._is_monitoring = False
+            self._current_config = None
             self.update_ui_state("stopped")
         elif status == "error":
             self.status_label.setText("状态: 错误")
             self.status_label.setStyleSheet("color: red; font-weight: bold;")
             self._is_monitoring = False
+            self._current_config = None
             self.update_ui_state("error")
 
     def update_ui_state(self, state):
@@ -380,11 +411,12 @@ class MainWindow(QMainWindow):
     def stop_sentinel(self):
         """停止哨兵"""
         if self.sentinel_thread:
-            if self.sentinel_thread.monitor:
-                self.sentinel_thread.monitor.stop()
+            # 统一通过 SentinelThread.stop() 停止
+            self.sentinel_thread.stop()
             self.sentinel_thread.wait(3000)  # 等待最多3秒
 
         self._is_monitoring = False
+        self._current_config = None
         self.status_label.setText("状态: 已停止")
         self.status_label.setStyleSheet("color: gray; font-weight: bold;")
         self.log_display.append("哨兵系统已停止")
@@ -400,8 +432,10 @@ class MainWindow(QMainWindow):
             self._trigger_alerts(person_name)
 
     def _trigger_alerts(self, person_name: str):
-        """触发告警"""
-        config = self.config_group.get_config()
+        """触发告警 — 使用启动时缓存的配置"""
+        config = self._current_config
+        if config is None:
+            return
 
         # 系统提示音
         if config.alert_sound:

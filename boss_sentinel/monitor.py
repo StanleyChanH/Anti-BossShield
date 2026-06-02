@@ -11,6 +11,13 @@ from .config import SentinelConfig, ConfigWatcher
 from .tracker import FaceTracker
 
 
+# 检测框颜色常量 (BGR)
+COLOR_TARGET = (0, 0, 255)     # 红色 - 已识别的目标人物
+COLOR_UNKNOWN = (0, 255, 0)    # 绿色 - 未知人脸
+COLOR_LABEL_BG = None          # 标签背景色跟随边框
+LABEL_FONT = cv2.FONT_HERSHEY_SIMPLEX
+
+
 class SentinelMonitor:
     """哨兵监控系统 - 统一入口"""
 
@@ -115,9 +122,19 @@ class SentinelMonitor:
         last_time = self._last_notify_time.get(person_name, 0.0)
         return (time.time() - last_time) >= self.config.notify_cooldown
 
-    def _draw_overlay(self, frame: np.ndarray, tracks: dict) -> np.ndarray:
-        """在帧上绘制检测框和人名标注"""
-        display = frame.copy()
+    def _draw_overlay(self, frame: np.ndarray, tracks: dict,
+                      inplace: bool = False) -> np.ndarray:
+        """在帧上绘制检测框和人名标注
+
+        参数:
+            frame: 原始帧
+            tracks: 跟踪对象字典
+            inplace: 是否直接在原帧上绘制（CLI 模式可省去复制开销）
+
+        返回:
+            标注后的帧
+        """
+        display = frame if inplace else frame.copy()
 
         for track_id, track in tracks.items():
             if track.disappeared > 0:
@@ -126,18 +143,18 @@ class SentinelMonitor:
             x1, y1, x2, y2 = [int(v) for v in track.bbox]
 
             if track.person_name:
-                color = (0, 0, 255)  # 红色 BGR - 目标人物
+                color = COLOR_TARGET
                 label = f"{track.person_name} ({track.similarity:.0%})"
             else:
-                color = (0, 255, 0)  # 绿色 BGR - 未知人脸
+                color = COLOR_UNKNOWN
                 label = "unknown"
 
             cv2.rectangle(display, (x1, y1), (x2, y2), color, 2)
 
-            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
+            (tw, th), _ = cv2.getTextSize(label, LABEL_FONT, 0.6, 1)
             cv2.rectangle(display, (x1, y1 - th - 8), (x1 + tw + 4, y1), color, -1)
             cv2.putText(display, label, (x1 + 2, y1 - 4),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+                        LABEL_FONT, 0.6, (255, 255, 255), 1)
 
         return display
 
@@ -175,14 +192,14 @@ class SentinelMonitor:
             if track.disappeared > 0:
                 continue
 
-            # 利用识别缓存：已识别过的跟踪对象直接使用缓存结果，不再重复推理和日志
+            # 利用识别缓存：已识别过的跟踪对象直接使用缓存结果，不再重复推理
+            # 仍然走日志/回调/通知路径，由冷却机制控制去重频率
             if track.recognized:
                 if not track.person_name:
                     continue
                 person_name = track.person_name
                 similarity = track.similarity
                 detected = True
-                continue
             else:
                 x1, y1, x2, y2 = track.bbox
                 face_img = frame[int(y1):int(y2), int(x1):int(x2)]
@@ -241,6 +258,9 @@ class SentinelMonitor:
                 if self._config_watcher:
                     self._config_watcher.check_for_changes()
 
+                # CLI 模式可原地绘制，GUI 模式需复制帧避免污染原始数据
+                is_cli_mode = self.config.show_feed and not frame_callback
+
                 for idx, cap in enumerate(self.cameras):
                     ret, frame = cap.read()
                     if not ret:
@@ -248,15 +268,16 @@ class SentinelMonitor:
 
                     detected = self.process_frame(frame, idx)
 
-                    # 绘制标注
-                    overlay_frame = self._draw_overlay(frame, self.tracker.tracks)
+                    overlay_frame = self._draw_overlay(
+                        frame, self.tracker.tracks, inplace=is_cli_mode
+                    )
 
                     # 传递帧给调用方（GUI 模式）
                     if frame_callback:
                         frame_callback(overlay_frame)
 
                     # CLI 模式：用 cv2.imshow 显示
-                    if self.config.show_feed and not frame_callback:
+                    if is_cli_mode:
                         cv2.imshow(f'Camera {idx} - Press Q to quit', overlay_frame)
 
                     if detected and self._should_lock():
@@ -264,7 +285,7 @@ class SentinelMonitor:
                         self._last_lock_time = time.time()
                         self.logger.log(f"Screen locked, cooldown {self.config.lock_cooldown}s")
 
-                if self.config.show_feed and not frame_callback:
+                if is_cli_mode:
                     if cv2.waitKey(1) & 0xFF == ord('q'):
                         break
 
