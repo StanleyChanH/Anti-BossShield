@@ -1,10 +1,14 @@
 import sys
+import numpy as np
+import cv2
+import winsound
+from ctypes import windll
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                             QHBoxLayout, QPushButton, QTextEdit, QLabel,
                             QLineEdit, QFormLayout, QGroupBox, QProgressDialog,
                             QSystemTrayIcon, QMenu, QAction, QStyle)
 from PyQt5.QtCore import QThread, pyqtSignal, Qt
-from PyQt5.QtGui import QIcon, QFont
+from PyQt5.QtGui import QIcon, QFont, QImage, QPixmap
 from .monitor import SentinelMonitor
 from .config import SentinelConfig
 
@@ -15,6 +19,7 @@ class SentinelThread(QThread):
     progress_signal = pyqtSignal(int, str)  # (进度百分比, 消息)
     error_signal = pyqtSignal(str)
     status_signal = pyqtSignal(str)  # 状态变化信号
+    frame_signal = pyqtSignal(np.ndarray)  # 视频帧信号
 
     def __init__(self, config: SentinelConfig):
         super().__init__()
@@ -38,7 +43,10 @@ class SentinelThread(QThread):
 
             self.progress_signal.emit(90, "开始监控...")
             self.status_signal.emit("monitoring")
-            self.monitor.run(callback=self.detection_callback)
+            self.monitor.run(
+                callback=self.detection_callback,
+                frame_callback=self.frame_signal.emit
+            )
 
         except Exception as e:
             self.error_signal.emit(f"初始化失败: {str(e)}")
@@ -53,6 +61,32 @@ class SentinelThread(QThread):
         if self.monitor:
             self.monitor.stop()
         self.status_signal.emit("stopped")
+
+
+class VideoWidget(QLabel):
+    """内嵌视频预览组件"""
+
+    def __init__(self):
+        super().__init__()
+        self.setAlignment(Qt.AlignCenter)
+        self.setMinimumSize(640, 480)
+        self.setStyleSheet("background: black; color: gray; border: 1px solid #444;")
+        self.setText("等待摄像头...")
+
+    def update_frame(self, frame: np.ndarray):
+        """更新显示帧"""
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb.shape
+        qimg = QImage(rgb.data, w, h, ch * w, QImage.Format_RGB888)
+        scaled = QPixmap.fromImage(qimg).scaled(
+            self.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
+        )
+        self.setPixmap(scaled)
+
+    def clear_frame(self):
+        """停止时清空画面"""
+        self.clear()
+        self.setText("监控已停止")
 
 
 class ConfigGroup(QGroupBox):
@@ -86,6 +120,12 @@ class ConfigGroup(QGroupBox):
         layout.addRow("锁屏冷却(秒):", self.lock_cooldown)
         layout.addRow("通知冷却(秒):", self.notify_cooldown)
 
+        self.alert_sound = QLineEdit("true")
+        self.alert_tray = QLineEdit("true")
+
+        layout.addRow("告警声音:", self.alert_sound)
+        layout.addRow("托盘通知:", self.alert_tray)
+
         self.setLayout(layout)
 
     def get_config(self) -> SentinelConfig:
@@ -100,7 +140,9 @@ class ConfigGroup(QGroupBox):
             frame_skip=int(self.frame_skip.text()),
             use_gpu=self.use_gpu.text().lower() == "true",
             lock_cooldown=int(self.lock_cooldown.text()),
-            notify_cooldown=int(self.notify_cooldown.text())
+            notify_cooldown=int(self.notify_cooldown.text()),
+            alert_sound=self.alert_sound.text().lower() == "true",
+            alert_tray=self.alert_tray.text().lower() == "true",
         )
 
     def load_config(self, config_dict: dict):
@@ -115,6 +157,8 @@ class ConfigGroup(QGroupBox):
         self.use_gpu.setText(str(config_dict.get('use_gpu', True)).lower())
         self.lock_cooldown.setText(str(config_dict.get('lock_cooldown', 30)))
         self.notify_cooldown.setText(str(config_dict.get('notify_cooldown', 60)))
+        self.alert_sound.setText(str(config_dict.get('alert_sound', True)).lower())
+        self.alert_tray.setText(str(config_dict.get('alert_tray', True)).lower())
 
 
 class MainWindow(QMainWindow):
@@ -136,7 +180,14 @@ class MainWindow(QMainWindow):
 
         # 配置组
         self.config_group = ConfigGroup()
+        self.config_group.setCheckable(True)
+        self.config_group.setChecked(False)  # 默认折叠
+        self.config_group.setTitle("配置 (点击展开)")
         layout.addWidget(self.config_group)
+
+        # 视频预览
+        self.video_widget = VideoWidget()
+        layout.addWidget(self.video_widget)
 
         # 控制按钮
         btn_layout = QHBoxLayout()
@@ -269,6 +320,7 @@ class MainWindow(QMainWindow):
         self.sentinel_thread.error_signal.connect(self.on_init_error)
         self.sentinel_thread.finished.connect(self.on_init_finished)
         self.sentinel_thread.status_signal.connect(self.on_status_changed)
+        self.sentinel_thread.frame_signal.connect(self.video_widget.update_frame)
         self.sentinel_thread.start()
 
         self._is_monitoring = True
@@ -336,18 +388,43 @@ class MainWindow(QMainWindow):
         self.status_label.setText("状态: 已停止")
         self.status_label.setStyleSheet("color: gray; font-weight: bold;")
         self.log_display.append("哨兵系统已停止")
+        self.video_widget.clear_frame()
         self.update_ui_state("stopped")
 
     def update_log(self, message):
         """更新日志"""
         self.log_display.append(message)
-        # 发送托盘通知
-        self.tray_icon.showMessage(
-            "检测到目标!",
-            message,
-            QSystemTrayIcon.Warning,
-            3000
-        )
+        # 从消息中提取人名并触发告警
+        if "检测到目标人物" in message:
+            person_name = message.replace("检测到目标人物: ", "").strip()
+            self._trigger_alerts(person_name)
+
+    def _trigger_alerts(self, person_name: str):
+        """触发告警"""
+        config = self.config_group.get_config()
+
+        # 系统提示音
+        if config.alert_sound:
+            try:
+                winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
+            except Exception:
+                pass
+
+        # 任务栏闪烁
+        try:
+            hwnd = int(self.winId())
+            windll.user32.FlashWindow(hwnd, True)
+        except Exception:
+            pass
+
+        # 托盘通知
+        if config.alert_tray:
+            self.tray_icon.showMessage(
+                "⚠️ 检测到目标!",
+                f"检测到: {person_name}",
+                QSystemTrayIcon.Critical,
+                5000
+            )
 
     def load_config_from_file(self):
         """从文件加载配置"""
