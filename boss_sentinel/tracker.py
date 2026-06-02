@@ -1,7 +1,5 @@
-import numpy as np
 from typing import Dict, Optional, Tuple
-from dataclasses import dataclass
-import time
+from dataclasses import dataclass, field
 
 @dataclass
 class Track:
@@ -10,8 +8,8 @@ class Track:
     bbox: Tuple[float, float, float, float]  # (x1, y1, x2, y2)
     person_name: Optional[str] = None
     similarity: float = 0.0
-    last_seen: float = 0.0
-    confidence: float = 0.0
+    disappeared: int = 0  # 连续消失帧数
+    recognized: bool = False  # 是否已识别过（缓存标记）
 
 class FaceTracker:
     """轻量级人脸跟踪器"""
@@ -21,7 +19,7 @@ class FaceTracker:
         初始化跟踪器
 
         参数:
-            max_disappeared: 目标消失的最大帧数
+            max_disappeared: 目标连续消失的最大帧数
             iou_threshold: IoU阈值，用于匹配检测框
         """
         self.max_disappeared = max_disappeared
@@ -35,7 +33,6 @@ class FaceTracker:
         x1_min, y1_min, x1_max, y1_max = bbox1
         x2_min, y2_min, x2_max, y2_max = bbox2
 
-        # 计算交集区域
         inter_x_min = max(x1_min, x2_min)
         inter_y_min = max(y1_min, y2_min)
         inter_x_max = min(x1_max, x2_max)
@@ -46,7 +43,6 @@ class FaceTracker:
 
         inter_area = (inter_x_max - inter_x_min) * (inter_y_max - inter_y_min)
 
-        # 计算并集区域
         bbox1_area = (x1_max - x1_min) * (y1_max - y1_min)
         bbox2_area = (x2_max - x2_min) * (y2_max - y2_min)
         union_area = bbox1_area + bbox2_area - inter_area
@@ -61,22 +57,17 @@ class FaceTracker:
             detections: 检测结果列表，每个元素为 (x1, y1, x2, y2, confidence)
 
         返回:
-            当前所有跟踪对象
+            当前所有活跃的跟踪对象
         """
-        current_time = time.time()
-
+        # 没有检测到任何目标，递增所有跟踪对象的消失计数
         if not detections:
-            # 没有检测到任何目标，更新所有跟踪对象的消失时间
-            disappeared = []
+            to_remove = []
             for track_id in list(self.tracks.keys()):
-                self.tracks[track_id].last_seen = current_time
-                disappeared.append(track_id)
-
-            # 移除长时间未出现的目标
-            for track_id in disappeared:
-                if current_time - self.tracks[track_id].last_seen > self.max_disappeared:
-                    del self.tracks[track_id]
-
+                self.tracks[track_id].disappeared += 1
+                if self.tracks[track_id].disappeared > self.max_disappeared:
+                    to_remove.append(track_id)
+            for track_id in to_remove:
+                del self.tracks[track_id]
             return self.tracks
 
         # 如果之前没有跟踪对象，为所有检测创建新跟踪
@@ -86,8 +77,6 @@ class FaceTracker:
                 self.tracks[self.next_id] = Track(
                     track_id=self.next_id,
                     bbox=(x1, y1, x2, y2),
-                    confidence=conf,
-                    last_seen=current_time
                 )
                 self.next_id += 1
             return self.tracks
@@ -96,7 +85,6 @@ class FaceTracker:
         matched_detections = set()
         matched_tracks = set()
 
-        # 计算检测框和跟踪框之间的IoU矩阵
         for track_id, track in self.tracks.items():
             best_iou = 0.0
             best_det_idx = -1
@@ -110,12 +98,10 @@ class FaceTracker:
                     best_iou = iou
                     best_det_idx = det_idx
 
-            # 如果找到匹配的检测框
             if best_iou >= self.iou_threshold and best_det_idx != -1:
                 x1, y1, x2, y2, conf = detections[best_det_idx]
                 self.tracks[track_id].bbox = (x1, y1, x2, y2)
-                self.tracks[track_id].confidence = conf
-                self.tracks[track_id].last_seen = current_time
+                self.tracks[track_id].disappeared = 0
                 matched_detections.add(best_det_idx)
                 matched_tracks.add(track_id)
 
@@ -126,23 +112,17 @@ class FaceTracker:
                 self.tracks[self.next_id] = Track(
                     track_id=self.next_id,
                     bbox=(x1, y1, x2, y2),
-                    confidence=conf,
-                    last_seen=current_time
                 )
                 self.next_id += 1
 
-        # 移除长时间未出现的跟踪对象
+        # 移除超时消失的跟踪对象
+        to_remove = []
         for track_id in list(self.tracks.keys()):
-            if current_time - self.tracks[track_id].last_seen > self.max_disappeared:
-                del self.tracks[track_id]
+            if track_id not in matched_tracks:
+                self.tracks[track_id].disappeared += 1
+                if self.tracks[track_id].disappeared > self.max_disappeared:
+                    to_remove.append(track_id)
+        for track_id in to_remove:
+            del self.tracks[track_id]
 
         return self.tracks
-
-    def get_track_by_id(self, track_id: int) -> Optional[Track]:
-        """根据ID获取跟踪对象"""
-        return self.tracks.get(track_id)
-
-    def reset(self):
-        """重置跟踪器"""
-        self.tracks.clear()
-        self.next_id = 0

@@ -67,22 +67,24 @@ class ConfigGroup(QGroupBox):
         self.model_path = QLineEdit("yolov8n-face.pt")
         self.known_faces_dir = QLineEdit("known_faces")
         self.log_file = QLineEdit("sentinel_log.txt")
-        self.detection_interval = QLineEdit("1")
         self.cameras = QLineEdit("0")
         self.threshold = QLineEdit("0.7")
         self.confidence_threshold = QLineEdit("0.7")
         self.frame_skip = QLineEdit("3")
         self.use_gpu = QLineEdit("true")
+        self.lock_cooldown = QLineEdit("30")
+        self.notify_cooldown = QLineEdit("60")
 
         layout.addRow("模型路径:", self.model_path)
         layout.addRow("人脸目录:", self.known_faces_dir)
         layout.addRow("日志文件:", self.log_file)
-        layout.addRow("检测间隔(秒):", self.detection_interval)
         layout.addRow("摄像头ID(逗号分隔):", self.cameras)
         layout.addRow("识别阈值:", self.threshold)
         layout.addRow("置信度阈值:", self.confidence_threshold)
         layout.addRow("帧跳过数(性能优化):", self.frame_skip)
         layout.addRow("使用GPU加速:", self.use_gpu)
+        layout.addRow("锁屏冷却(秒):", self.lock_cooldown)
+        layout.addRow("通知冷却(秒):", self.notify_cooldown)
 
         self.setLayout(layout)
 
@@ -92,12 +94,13 @@ class ConfigGroup(QGroupBox):
             model_path=self.model_path.text(),
             known_faces_dir=self.known_faces_dir.text(),
             log_file=self.log_file.text(),
-            detection_interval=int(self.detection_interval.text()),
             cameras=[int(cam.strip()) for cam in self.cameras.text().split(",") if cam.strip()],
             threshold=float(self.threshold.text()),
             confidence_threshold=float(self.confidence_threshold.text()),
             frame_skip=int(self.frame_skip.text()),
-            use_gpu=self.use_gpu.text().lower() == "true"
+            use_gpu=self.use_gpu.text().lower() == "true",
+            lock_cooldown=int(self.lock_cooldown.text()),
+            notify_cooldown=int(self.notify_cooldown.text())
         )
 
     def load_config(self, config_dict: dict):
@@ -105,12 +108,13 @@ class ConfigGroup(QGroupBox):
         self.model_path.setText(config_dict.get('model_path', 'yolov8n-face.pt'))
         self.known_faces_dir.setText(config_dict.get('known_faces_dir', 'known_faces'))
         self.log_file.setText(config_dict.get('log_file', 'sentinel_log.txt'))
-        self.detection_interval.setText(str(config_dict.get('detection_interval', 1)))
         self.cameras.setText(','.join(map(str, config_dict.get('cameras', [0]))))
         self.threshold.setText(str(config_dict.get('threshold', 0.7)))
         self.confidence_threshold.setText(str(config_dict.get('confidence_threshold', 0.7)))
         self.frame_skip.setText(str(config_dict.get('frame_skip', 3)))
         self.use_gpu.setText(str(config_dict.get('use_gpu', True)).lower())
+        self.lock_cooldown.setText(str(config_dict.get('lock_cooldown', 30)))
+        self.notify_cooldown.setText(str(config_dict.get('notify_cooldown', 60)))
 
 
 class MainWindow(QMainWindow):

@@ -19,7 +19,6 @@ class SentinelConfig:
     """哨兵系统配置"""
     known_faces_dir: str = "known_faces"
     model_path: str = "yolov8n-face.pt"
-    detection_interval: int = 1
     threshold: float = 0.7
     confidence_threshold: float = 0.7
     show_feed: bool = True
@@ -29,6 +28,8 @@ class SentinelConfig:
     # 性能优化配置
     frame_skip: int = 3  # 帧跳过数，每N帧处理一次
     use_gpu: bool = True  # 是否使用GPU加速
+    lock_cooldown: int = 30  # 锁屏后冷却秒数，冷却期内不重复锁屏
+    notify_cooldown: int = 60  # 同一人通知冷却秒数
 
     def __post_init__(self):
         """配置验证"""
@@ -116,7 +117,6 @@ def load_config(config_dict: Dict[str, Any]) -> SentinelConfig:
     return SentinelConfig(
         known_faces_dir=config_dict.get('known_faces_dir'),
         model_path=config_dict.get('model_path'),
-        detection_interval=config_dict.get('detection_interval'),
         threshold=config_dict.get('threshold'),
         confidence_threshold=config_dict.get('confidence_threshold'),
         show_feed=config_dict.get('show_feed'),
@@ -124,7 +124,9 @@ def load_config(config_dict: Dict[str, Any]) -> SentinelConfig:
         log_file=config_dict.get('log_file'),
         notification_email=email_config,
         frame_skip=config_dict.get('frame_skip', 3),
-        use_gpu=config_dict.get('use_gpu', True)
+        use_gpu=config_dict.get('use_gpu', True),
+        lock_cooldown=config_dict.get('lock_cooldown', 30),
+        notify_cooldown=config_dict.get('notify_cooldown', 60)
     )
 
 
@@ -133,14 +135,15 @@ def save_config(config: SentinelConfig, file_path: str) -> None:
     config_dict = {
         'known_faces_dir': config.known_faces_dir,
         'model_path': config.model_path,
-        'detection_interval': config.detection_interval,
         'threshold': config.threshold,
         'confidence_threshold': config.confidence_threshold,
         'show_feed': config.show_feed,
         'cameras': config.cameras,
         'log_file': config.log_file,
         'frame_skip': config.frame_skip,
-        'use_gpu': config.use_gpu
+        'use_gpu': config.use_gpu,
+        'lock_cooldown': config.lock_cooldown,
+        'notify_cooldown': config.notify_cooldown
     }
 
     if config.notification_email:

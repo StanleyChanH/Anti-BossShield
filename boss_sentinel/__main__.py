@@ -40,8 +40,22 @@ def _preload_torch_dlls():
     except Exception:
         pass
 
+def _fix_qt_plugin_path():
+    """修复含中文路径时 Qt 平台插件加载失败的问题"""
+    try:
+        import importlib.util
+        spec = importlib.util.find_spec("PyQt5")
+        if spec is None or spec.origin is None:
+            return
+        qt_plugins = os.path.join(os.path.dirname(spec.origin), "Qt5", "plugins", "platforms")
+        if os.path.isdir(qt_plugins):
+            os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = qt_plugins
+    except Exception:
+        pass
+
 # 在任何可能触发 torch import 的模块之前预加载
 _preload_torch_dlls()
+_fix_qt_plugin_path()
 
 from boss_sentinel.gui import run_gui
 

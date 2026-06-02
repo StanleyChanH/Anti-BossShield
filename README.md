@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-38%20passed-brightgreen)](tests/)
+[![uv](https://img.shields.io/badge/uv-managed-261230?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
 
 [功能特性](#-功能特性) • [快速开始](#-快速开始) • [配置](#-配置说明) • [开发](#-开发)
 
@@ -28,11 +28,12 @@ Boss Sentinel 是一个基于深度学习的 Windows 人脸识别监控系统。
 | 🔍 **实时人脸检测** | 基于 YOLOv8 的高精度人脸检测，支持多摄像头 |
 | 🎯 **多人物识别** | 支持多人子目录结构，每人可配置多张照片 |
 | 🚀 **人脸跟踪** | 轻量级跟踪器，减少重复识别，提升性能 |
-| 🔒 **自动锁屏** | 检测到目标人物时自动锁定 Windows |
-| 📧 **邮件通知** | 可选的邮件报警功能，第一时间获知检测事件 |
+| 🔒 **自动锁屏** | 检测到目标人物时自动锁定 Windows（LockWorkStation API） |
+| 📧 **邮件通知** | 可选的邮件报警功能，带冷却去重机制 |
 | 💻 **系统托盘** | GUI 支持最小化到托盘，后台静默运行 |
 | 🔥 **配置热重载** | 运行时修改配置自动生效，无需重启 |
-| ⚡ **性能优化** | 帧跳过、GPU 加速、懒加载等多重优化 |
+| ⚡ **性能优化** | 帧跳过、GPU 加速、识别缓存、懒加载等多重优化 |
+| 🔄 **冷却机制** | 锁屏/通知/日志各自带冷却期，避免重复触发 |
 
 ## 🚀 快速开始
 
@@ -43,8 +44,11 @@ Boss Sentinel 是一个基于深度学习的 Windows 人脸识别监控系统。
 git clone https://github.com/yourusername/Anti-BossShield.git
 cd Anti-BossShield
 
-# 安装依赖
-pip install -r requirements.txt
+# 使用 uv 安装依赖（推荐）
+uv sync
+
+# 或使用 pip
+pip install -e .
 ```
 
 ### 配置
@@ -87,6 +91,8 @@ python -m boss_sentinel.main
 | `confidence_threshold` | `0.7` | 检测置信度阈值 |
 | `frame_skip` | `3` | 帧跳过数，越大性能越好但响应变慢 |
 | `use_gpu` | `true` | 是否使用 GPU 加速 |
+| `lock_cooldown` | `30` | 锁屏冷却秒数，冷却期内不重复锁屏 |
+| `notify_cooldown` | `60` | 同一人通知冷却秒数 |
 | `cameras` | `[0]` | 摄像头 ID 列表 |
 | `show_feed` | `true` | 是否显示摄像头画面 |
 
@@ -95,22 +101,19 @@ python -m boss_sentinel.main
 ```
 boss_sentinel/
 ├── __init__.py
-├── __main__.py      # 包入口
+├── __main__.py      # 包入口（含中文路径修复）
 ├── config.py        # 配置管理 + 热重载
 ├── detector.py      # YOLOv8 人脸检测
 ├── recognizer.py    # FaceNet 人脸识别
-├── tracker.py       # 人脸跟踪器
-├── monitor.py       # 主监控逻辑
-├── locker.py        # Windows 锁屏
+├── tracker.py       # 人脸跟踪 + 识别缓存
+├── monitor.py       # 主监控逻辑 + 冷却机制
+├── locker.py        # Windows 锁屏 (LockWorkStation)
 ├── notifier.py      # 邮件通知
 ├── logger.py        # 日志记录
-└── gui.py           # PyQt5 图形界面
+├── gui.py           # PyQt5 图形界面
+└── main.py          # CLI 入口
 
 tests/               # 单元测试
-├── test_config.py
-├── test_detector.py
-├── test_tracker.py
-└── test_performance.py
 ```
 
 ## 🔧 开发
@@ -118,13 +121,13 @@ tests/               # 单元测试
 ### 运行测试
 
 ```bash
-pytest tests/ -v
+uv run pytest tests/ -v
 ```
 
 ### 打包为 EXE
 
 ```bash
-pyinstaller BossSentinel.spec
+uv run pyinstaller BossSentinel.spec
 ```
 
 生成的可执行文件位于 `dist/BossSentinel.exe`。
@@ -133,6 +136,7 @@ pyinstaller BossSentinel.spec
 
 - **操作系统**: Windows 10/11
 - **Python**: 3.9 - 3.12
+- **包管理**: [uv](https://docs.astral.sh/uv/)（推荐）或 pip
 - **硬件**: 摄像头（必需）、CUDA 兼容 GPU（可选，用于加速）
 
 ## 📝 注意事项

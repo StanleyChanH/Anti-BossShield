@@ -70,7 +70,7 @@ config.json
 # Build artifacts
 dist/
 build/
-*.spec
+nuitka_dist/
 
 # System
 .DS_Store
@@ -79,6 +79,7 @@ desktop.ini
 
 # UV
 .uv/
-uv.lock
 
-CLAUDE.md
+# AI tools
+.omc/
+.understand-anything/

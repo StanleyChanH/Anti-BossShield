@@ -1,5 +1,4 @@
 from ultralytics import YOLO
-import cv2
 from typing import Optional, List
 import numpy as np
 import torch
@@ -46,21 +45,3 @@ class FaceDetector:
                 boxes.append([x1, y1, x2, y2, conf])
 
         return boxes if boxes else None
-
-    def draw_boxes(self, frame: np.ndarray, boxes: List[List[float]], color: tuple = (0, 255, 0), thickness: int = 2) -> np.ndarray:
-        """
-        在图像上绘制人脸边界框
-
-        参数:
-            frame: 原始图像
-            boxes: 人脸边界框列表
-            color: 边界框颜色(BGR)
-            thickness: 边界框线宽
-
-        返回:
-            绘制了边界框的图像
-        """
-        for box in boxes:
-            x1, y1, x2, y2, _ = box
-            cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), color, thickness)
-        return frame

@@ -1,7 +1,6 @@
 {
     "known_faces_dir": "known_faces",
     "model_path": "yolov8n-face.pt",
-    "detection_interval": 1,
     "threshold": 0.7,
     "confidence_threshold": 0.7,
     "show_feed": true,
@@ -9,6 +8,8 @@
     "log_file": "sentinel_log.txt",
     "frame_skip": 3,
     "use_gpu": true,
+    "lock_cooldown": 30,
+    "notify_cooldown": 60,
     "notification_email": {
         "sender": "your_email@example.com",
         "receiver": "recipient@example.com",

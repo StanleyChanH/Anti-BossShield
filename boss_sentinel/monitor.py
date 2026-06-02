@@ -1,7 +1,7 @@
 import cv2
 import time
 import numpy as np
-from typing import List, Optional, Callable
+from typing import List, Optional, Callable, Dict
 from .detector import FaceDetector
 from .recognizer import FaceRecognizer
 from .notifier import EmailNotifier, create_detection_notification
@@ -26,11 +26,16 @@ class SentinelMonitor:
         self.config = config
         self.logger = SentinelLogger(config.log_file)
         self.locker = WindowsLocker()
-        self.notifier = EmailNotifier(config.notification_email) if config.notification_email else None
+        self.notifier = self._create_notifier(config.notification_email)
         self.running = False
         self.frame_count = 0
         self.tracker = FaceTracker(max_disappeared=30)
         self._callback: Optional[Callable[[str], None]] = None
+
+        # 冷却计时器
+        self._last_lock_time: float = 0.0
+        self._last_notify_time: Dict[str, float] = {}
+        self._last_log_time: Dict[str, float] = {}
 
         # 模型占位符（懒加载）
         self._models_loaded = False
@@ -46,6 +51,15 @@ class SentinelMonitor:
         if not lazy_load:
             self.initialize_models()
 
+    @staticmethod
+    def _create_notifier(email_config) -> Optional[EmailNotifier]:
+        """创建通知器，跳过无效的占位符配置"""
+        if not email_config:
+            return None
+        if 'example.com' in email_config.smtp_server:
+            return None
+        return EmailNotifier(email_config)
+
     def _on_config_changed(self, new_config: SentinelConfig) -> None:
         """配置变化回调"""
         self.logger.log("Config changed, reloading...")
@@ -53,10 +67,7 @@ class SentinelMonitor:
         self.config = new_config
 
         # 更新通知器
-        if new_config.notification_email:
-            self.notifier = EmailNotifier(new_config.notification_email)
-        else:
-            self.notifier = None
+        self.notifier = self._create_notifier(new_config.notification_email)
 
         # 重新加载人脸特征（如果目录变化）
         if self.recognizer and old_faces_dir != new_config.known_faces_dir:
@@ -95,9 +106,18 @@ class SentinelMonitor:
                 self.logger.log(f"Warning: Cannot open camera {idx}", print_console=True)
         return cameras
 
+    def _should_lock(self) -> bool:
+        """检查是否在锁屏冷却期内"""
+        return (time.time() - self._last_lock_time) >= self.config.lock_cooldown
+
+    def _should_notify(self, person_name: str) -> bool:
+        """检查是否在通知冷却期内"""
+        last_time = self._last_notify_time.get(person_name, 0.0)
+        return (time.time() - last_time) >= self.config.notify_cooldown
+
     def process_frame(self, frame: np.ndarray, camera_idx: int) -> bool:
         """
-        处理摄像头帧（带帧跳过优化和人脸跟踪）
+        处理摄像头帧（带帧跳过优化、人脸跟踪和识别缓存）
 
         参数:
             frame: 摄像头帧
@@ -124,35 +144,63 @@ class SentinelMonitor:
 
         # 对每个跟踪对象进行人脸识别
         for track_id, track in tracks.items():
-            x1, y1, x2, y2 = track.bbox
-            face_img = frame[int(y1):int(y2), int(x1):int(x2)]
-
-            if face_img.size == 0:
+            person_name = None
+            # 跳过已消失的跟踪对象
+            if track.disappeared > 0:
                 continue
 
-            try:
-                embedding = self.recognizer.get_embedding(face_img)
-                person_name, similarity = self.recognizer.compare_faces(embedding, self.config.threshold)
+            # 利用识别缓存：已识别过的跟踪对象直接使用缓存结果，不再重复推理和日志
+            if track.recognized:
+                if not track.person_name:
+                    continue
+                person_name = track.person_name
+                similarity = track.similarity
+                detected = True
+                continue
+            else:
+                x1, y1, x2, y2 = track.bbox
+                face_img = frame[int(y1):int(y2), int(x1):int(x2)]
 
+                if face_img.size == 0:
+                    continue
+
+                try:
+                    embedding = self.recognizer.get_embedding(face_img)
+                    person_name, similarity = self.recognizer.compare_faces(embedding, self.config.threshold)
+                except Exception as e:
+                    self.logger.log(f"Face processing error: {e}")
+                    continue
+
+                # 缓存识别结果到跟踪对象
                 if person_name:
+                    track.person_name = person_name
+                    track.similarity = similarity
+                    track.recognized = True
+
+            if person_name:
+                now = time.time()
+                elapsed = now - self._last_log_time.get(person_name, 0.0)
+                if elapsed >= 5.0:
                     self.logger.log(f"Camera {camera_idx}: Detected {person_name} ({similarity:.2%})")
-                    detected = True
+                    self._last_log_time[person_name] = now
+                detected = True
 
-                    if self._callback:
-                        self._callback(person_name)
+                if self._callback:
+                    self._callback(person_name)
 
-                    if self.notifier:
-                        notification = create_detection_notification(person_name, similarity, camera_idx)
-                        self.notifier.send(notification['subject'], notification['body'])
-
-            except Exception as e:
-                self.logger.log(f"Face processing error: {e}")
+                # 带冷却的通知
+                if self.notifier and self._should_notify(person_name):
+                    notification = create_detection_notification(person_name, similarity, camera_idx)
+                    self.notifier.send(notification['subject'], notification['body'])
+                    self._last_notify_time[person_name] = time.time()
 
         return detected
 
     def run(self, callback: Optional[Callable[[str], None]] = None):
         """
-        运监控系统
+        运行监控系统
+
+        检测到目标后锁屏，冷却期过后继续监控，不会退出。
 
         参数:
             callback: 检测到目标人物时的回调函数
@@ -174,9 +222,10 @@ class SentinelMonitor:
                         continue
 
                     if self.process_frame(frame, idx):
-                        self.locker.lock()
-                        self.running = False
-                        break
+                        if self._should_lock():
+                            self.locker.lock()
+                            self._last_lock_time = time.time()
+                            self.logger.log(f"Screen locked, cooldown {self.config.lock_cooldown}s")
 
                     if self.config.show_feed:
                         cv2.imshow(f'Camera {idx} - Press Q to quit', frame)

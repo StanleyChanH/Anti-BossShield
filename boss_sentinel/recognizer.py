@@ -78,8 +78,8 @@ class FaceRecognizer:
         """从图像文件提取特征向量"""
         img = Image.open(img_path).convert('RGB').resize((160, 160))
         img_tensor = torch.tensor(np.array(img)).permute(2, 0, 1).float().unsqueeze(0)
-        return self.resnet(img_tensor).detach().numpy()
-        
+        return self.resnet(img_tensor).detach().numpy().flatten()
+
     def get_embedding(self, face_img: np.ndarray) -> np.ndarray:
         """
         获取人脸图像的特征向量
@@ -92,7 +92,7 @@ class FaceRecognizer:
         """
         face_pil = Image.fromarray(cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)).resize((160, 160))
         face_tensor = torch.tensor(np.array(face_pil)).permute(2, 0, 1).float().unsqueeze(0)
-        return self.resnet(face_tensor).detach().numpy()
+        return self.resnet(face_tensor).detach().numpy().flatten()
         
     def compare_faces(self, embedding: np.ndarray, threshold: float = 0.7) -> Tuple[Optional[str], float]:
         """
