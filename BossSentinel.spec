@@ -6,7 +6,7 @@ Boss Sentinel PyInstaller 配置文件
 
 a = Analysis(
     ['boss_sentinel\\__main__.py'],
-    pathex=['d:\\Anti-BossShield'],
+    pathex=[],
     binaries=[],
     datas=[
         ('boss_sentinel', 'boss_sentinel'),
