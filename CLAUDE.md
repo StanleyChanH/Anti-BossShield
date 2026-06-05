@@ -66,10 +66,10 @@ cp config.json.example config.json
 
 | File | Description |
 |------|-------------|
-| `web/server.py` | FastAPI backend — REST API, MJPEG video stream, SSE log/alert push, monitoring thread management |
-| `web/static/index.html` | Single-page application — Apple-style dark theme, Hero, video preview, feature dashboard, config panel, log viewer |
-| `web/static/style.css` | Apple-inspired CSS — glassmorphism cards, gradient text, toggle switches, responsive layout |
-| `web/static/app.js` | Frontend logic — API calls, SSE streams, MJPEG feed, Web Notification API, audio alerts |
+| `web/server.py` | FastAPI backend — REST API, MJPEG video stream, SSE log/alert push, monitoring thread management, stats tracking |
+| `web/static/index.html` | Single-page application — Apple-style dark theme, Hero, video preview, feature dashboard, data dashboard, config panel, log viewer |
+| `web/static/style.css` | Apple-inspired CSS — glassmorphism cards, gradient text, toggle switches, responsive layout, dashboard charts |
+| `web/static/app.js` | Frontend logic — API calls, SSE streams, MJPEG feed, Web Notification API, audio alerts, dashboard polling |
 
 **API Endpoints:**
 
@@ -85,6 +85,7 @@ cp config.json.example config.json
 | GET | `/api/logs` | Real-time log push (SSE) |
 | GET | `/api/alerts` | Real-time alert push (SSE) |
 | GET | `/api/faces` | List known faces |
+| GET | `/api/stats` | Dashboard statistics (detections, alerts, timeline, hourly distribution, pomodoro report, attention samples) |
 
 ### Optional Feature Modules
 
@@ -150,17 +151,20 @@ SentinelMonitor (background thread)
     │
     ├── frame_callback(frame, feature_data)
     │       ├── MJPEG queue → /api/video (multipart/x-mixed-replace)
-    │       └── feature_status dict → /api/status (polling)
+    │       ├── feature_status dict → /api/status (polling)
+    │       └── attention samples → _stats (session-level tracking)
     │
     ├── detection_callback(person_name)
     │       ├── log buffer → /api/logs (SSE)
-    │       └── alert event → /api/alerts (SSE)
+    │       ├── alert event → /api/alerts (SSE)
+    │       └── stats tracking → /api/stats (detection count, timeline, hourly distribution)
     │
     └── Browser Frontend
             ├── <img src="/api/video"> → live video feed
             ├── EventSource("/api/logs") → real-time log display
             ├── EventSource("/api/alerts") → alert toast + notification
-            └── fetch("/api/...") → config CRUD, start/stop control
+            ├── fetch("/api/...") → config CRUD, start/stop control
+            └── fetch("/api/stats") → data dashboard (3s polling: stat cards, hourly chart, timeline, pomodoro report, attention overview)
 ```
 
 ### Cooldown & Caching System
