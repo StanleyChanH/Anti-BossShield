@@ -1078,3 +1078,281 @@ input[type="checkbox"]:checked + .toggle-switch::after {
     background: var(--bg-secondary);
     color: var(--text-primary);
 }
+
+/* ================================================================
+   数据看板
+   ================================================================ */
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.stat-card {
+    padding: 24px 20px;
+    text-align: center;
+    transition: transform var(--transition-normal), box-shadow var(--transition-normal);
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-elevated);
+}
+
+.stat-icon {
+    font-size: 28px;
+    margin-bottom: 8px;
+}
+
+.stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+    line-height: 1.2;
+}
+
+.stat-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    font-weight: 500;
+}
+
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.dashboard-card {
+    padding: 24px;
+}
+
+.dashboard-card-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+    letter-spacing: -0.01em;
+}
+
+.dashboard-updated {
+    font-size: 12px;
+    color: var(--text-tertiary);
+}
+
+/* 小时分布图 */
+.hourly-chart {
+    display: flex;
+    align-items: flex-end;
+    height: 100px;
+    gap: 3px;
+    padding: 4px 0;
+}
+
+.hourly-bar {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    height: 100%;
+}
+
+.bar-fill {
+    width: 100%;
+    min-height: 3px;
+    background: rgba(0, 113, 227, 0.25);
+    border-radius: 3px 3px 0 0;
+    transition: height 0.6s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.bar-fill.has-data {
+    background: linear-gradient(180deg, var(--accent-blue), rgba(0, 113, 227, 0.5));
+}
+
+.bar-label {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    margin-top: 6px;
+    font-family: var(--font-mono);
+    height: 14px;
+}
+
+/* 检测时间线 */
+.timeline-container {
+    max-height: 180px;
+    overflow-y: auto;
+}
+
+.timeline-empty,
+.report-empty {
+    font-size: 13px;
+    color: var(--text-tertiary);
+    text-align: center;
+    padding: 24px 0;
+}
+
+.timeline-entry {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    animation: fadeIn 0.3s ease;
+}
+
+.timeline-entry:last-child {
+    border-bottom: none;
+}
+
+.timeline-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.timeline-dot.owner { background: var(--accent-blue); }
+.timeline-dot.boss { background: var(--accent-red); }
+.timeline-dot.colleague { background: var(--accent-green); }
+.timeline-dot.unknown { background: var(--text-tertiary); }
+
+.timeline-time {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    flex-shrink: 0;
+    min-width: 60px;
+}
+
+.timeline-person {
+    font-size: 13px;
+    color: var(--text-primary);
+    font-weight: 500;
+    flex: 1;
+}
+
+.timeline-role {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 980px;
+    font-weight: 500;
+}
+
+.timeline-role.owner {
+    background: rgba(0, 113, 227, 0.15);
+    color: var(--accent-blue);
+}
+
+.timeline-role.boss {
+    background: rgba(255, 69, 58, 0.15);
+    color: var(--accent-red);
+}
+
+.timeline-role.colleague {
+    background: rgba(48, 209, 88, 0.15);
+    color: var(--accent-green);
+}
+
+.timeline-role.unknown {
+    background: rgba(134, 134, 139, 0.15);
+    color: var(--text-secondary);
+}
+
+/* 日报内容 */
+.report-content {
+    min-height: 80px;
+}
+
+.report-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.report-stat:last-child {
+    border-bottom: none;
+}
+
+.report-stat-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.report-stat-value {
+    font-size: 14px;
+    font-weight: 600;
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+}
+
+/* 注意力条 */
+.attention-bar {
+    height: 8px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+    display: flex;
+    margin: 12px 0;
+}
+
+.attention-segment {
+    height: 100%;
+    transition: width 0.5s ease;
+}
+
+.attention-segment.focused { background: var(--accent-green); }
+.attention-segment.distracted { background: var(--accent-orange); }
+.attention-segment.away { background: var(--accent-red); }
+
+.attention-legend {
+    display: flex;
+    gap: 16px;
+    margin-top: 8px;
+}
+
+.attention-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.attention-legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.attention-legend-dot.focused { background: var(--accent-green); }
+.attention-legend-dot.distracted { background: var(--accent-orange); }
+.attention-legend-dot.away { background: var(--accent-red); }
+
+.focus-big-score {
+    font-size: 40px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    color: var(--accent-green);
+    text-align: center;
+    margin: 8px 0;
+}
+
+/* 看板响应式 */
+@media (max-width: 768px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+}

@@ -151,6 +151,74 @@
             </div>
         </section>
 
+        <!-- 数据看板 -->
+        <section class="section" id="dashboardSection">
+            <div class="section-header">
+                <h2 class="section-title">数据看板</h2>
+                <span class="dashboard-updated" id="dashboardUpdated">--</span>
+            </div>
+
+            <!-- 核心指标卡片 -->
+            <div class="stats-grid">
+                <div class="stat-card glass-card">
+                    <div class="stat-icon">👁️</div>
+                    <div class="stat-value" id="statDetections">0</div>
+                    <div class="stat-label">检测事件</div>
+                </div>
+                <div class="stat-card glass-card">
+                    <div class="stat-icon">⚠️</div>
+                    <div class="stat-value" id="statAlerts">0</div>
+                    <div class="stat-label">安全告警</div>
+                </div>
+                <div class="stat-card glass-card">
+                    <div class="stat-icon">👤</div>
+                    <div class="stat-value" id="statPersons">0</div>
+                    <div class="stat-label">识别人物</div>
+                </div>
+                <div class="stat-card glass-card">
+                    <div class="stat-icon">⏱️</div>
+                    <div class="stat-value" id="statUptime">00:00</div>
+                    <div class="stat-label">运行时长</div>
+                </div>
+            </div>
+
+            <!-- 图表行 -->
+            <div class="dashboard-grid">
+                <!-- 检测时段分布 -->
+                <div class="dashboard-card glass-card">
+                    <h3 class="dashboard-card-title">检测时段分布</h3>
+                    <div class="hourly-chart" id="hourlyChart"></div>
+                </div>
+
+                <!-- 最近检测记录 -->
+                <div class="dashboard-card glass-card">
+                    <h3 class="dashboard-card-title">检测记录</h3>
+                    <div class="timeline-container" id="detectionTimeline">
+                        <div class="timeline-empty">暂无检测记录</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 日报卡片 -->
+            <div class="dashboard-grid">
+                <!-- 番茄日报 -->
+                <div class="dashboard-card glass-card">
+                    <h3 class="dashboard-card-title">🍅 今日番茄</h3>
+                    <div class="report-content" id="pomodoroReport">
+                        <p class="report-empty">未启用番茄钟</p>
+                    </div>
+                </div>
+
+                <!-- 注意力概览 -->
+                <div class="dashboard-card glass-card">
+                    <h3 class="dashboard-card-title">🎯 注意力概览</h3>
+                    <div class="report-content" id="attentionReport">
+                        <p class="report-empty">未启用注意力追踪</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- 配置面板 -->
         <section class="section" id="configSection">
             <h2 class="section-title">系统配置</h2>

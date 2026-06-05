@@ -20,6 +20,9 @@ const app = {
     // 告警冷却
     _lastAlertTime: 0,
 
+    // 看板刷新计时器
+    _statsTimer: null,
+
     /* ----------------------------------------------------------------
        初始化
        ---------------------------------------------------------------- */
@@ -29,6 +32,7 @@ const app = {
         this._connectLogStream();
         this._connectAlertStream();
         this._startStatusPolling();
+        this._startStatsPolling();
         this._requestNotificationPermission();
         this._prepareAudio();
     },
@@ -427,6 +431,143 @@ const app = {
             ssBadge.textContent = '未启用';
             ssBadge.className = 'feature-badge disabled';
         }
+    },
+
+    /* ----------------------------------------------------------------
+       数据看板
+       ---------------------------------------------------------------- */
+
+    _startStatsPolling() {
+        const poll = async () => {
+            try {
+                const res = await this._api('GET', '/api/stats');
+                const stats = await res.json();
+                this._updateDashboard(stats);
+            } catch (_) {}
+        };
+        poll();
+        this._statsTimer = setInterval(poll, 3000);
+    },
+
+    _updateDashboard(stats) {
+        // 核心指标卡片
+        document.getElementById('statDetections').textContent = stats.total_detections || 0;
+        document.getElementById('statAlerts').textContent = stats.total_alerts || 0;
+        document.getElementById('statPersons').textContent = stats.unique_persons || 0;
+
+        // 运行时长
+        const uptime = stats.uptime_seconds || 0;
+        const hrs = Math.floor(uptime / 3600);
+        const mins = Math.floor((uptime % 3600) / 60);
+        const secs = Math.floor(uptime % 60);
+        document.getElementById('statUptime').textContent = hrs > 0
+            ? hrs + ':' + String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0')
+            : String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+
+        // 更新时间
+        document.getElementById('dashboardUpdated').textContent =
+            '更新于 ' + new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+
+        // 图表和报告
+        this._updateHourlyChart(stats.hourly_detections || []);
+        this._updateTimeline(stats.detection_timeline || []);
+        this._updatePomodoroReport(stats.pomodoro_report);
+        this._updateAttentionReport(stats.attention_samples || {});
+    },
+
+    _updateHourlyChart(hourly) {
+        const container = document.getElementById('hourlyChart');
+        if (!container) return;
+        const maxVal = Math.max(...hourly, 1);
+        let html = '';
+        for (let h = 0; h < 24; h++) {
+            const val = hourly[h] || 0;
+            const pct = (val / maxVal) * 100;
+            html += '<div class="hourly-bar">'
+                + '<div class="bar-fill' + (val > 0 ? ' has-data' : '') + '" style="height:' + Math.max(pct, 3) + '%"></div>'
+                + '<span class="bar-label">' + (h % 3 === 0 ? h : '') + '</span>'
+                + '</div>';
+        }
+        container.innerHTML = html;
+    },
+
+    _updateTimeline(timeline) {
+        const container = document.getElementById('detectionTimeline');
+        if (!container) return;
+        if (!timeline.length) {
+            container.innerHTML = '<div class="timeline-empty">暂无检测记录</div>';
+            return;
+        }
+        const roleMap = {
+            owner: { label: '主人', dot: 'owner' },
+            boss: { label: 'Boss', dot: 'boss' },
+            colleague: { label: '同事', dot: 'colleague' },
+            unknown: { label: '未知', dot: 'unknown' },
+        };
+        const entries = [...timeline].reverse().slice(0, 15);
+        let html = '';
+        for (const entry of entries) {
+            const info = roleMap[entry.role] || roleMap.unknown;
+            html += '<div class="timeline-entry">'
+                + '<span class="timeline-dot ' + info.dot + '"></span>'
+                + '<span class="timeline-time">' + this._escHtml(entry.time || '') + '</span>'
+                + '<span class="timeline-person">' + this._escHtml(entry.person || '') + '</span>'
+                + '<span class="timeline-role ' + info.dot + '">' + info.label + '</span>'
+                + '</div>';
+        }
+        container.innerHTML = html;
+    },
+
+    _updatePomodoroReport(report) {
+        const container = document.getElementById('pomodoroReport');
+        if (!container) return;
+        if (!report) {
+            container.innerHTML = '<p class="report-empty">未启用番茄钟</p>';
+            return;
+        }
+        container.innerHTML =
+            '<div class="report-stat">'
+            + '<span class="report-stat-label">已完成番茄</span>'
+            + '<span class="report-stat-value">' + (report.pomodoros_completed || 0) + ' 个</span>'
+            + '</div>'
+            + '<div class="report-stat">'
+            + '<span class="report-stat-label">专注时长</span>'
+            + '<span class="report-stat-value">' + this._escHtml(report.total_focus_time || '0:00:00') + '</span>'
+            + '</div>'
+            + '<div class="report-stat">'
+            + '<span class="report-stat-label">休息时长</span>'
+            + '<span class="report-stat-value">' + this._escHtml(report.total_break_time || '0:00:00') + '</span>'
+            + '</div>'
+            + '<div class="report-stat">'
+            + '<span class="report-stat-label">专注率</span>'
+            + '<span class="report-stat-value">' + Math.round((report.focus_ratio || 0) * 100) + '%</span>'
+            + '</div>';
+    },
+
+    _updateAttentionReport(samples) {
+        const container = document.getElementById('attentionReport');
+        if (!container) return;
+        const total = (samples.focused || 0) + (samples.distracted || 0) + (samples.away || 0);
+        if (total === 0) {
+            container.innerHTML = '<p class="report-empty">未启用注意力追踪</p>';
+            return;
+        }
+        const focusedPct = Math.round(((samples.focused || 0) / total) * 100);
+        const distractedPct = Math.round(((samples.distracted || 0) / total) * 100);
+        const awayPct = 100 - focusedPct - distractedPct;
+
+        container.innerHTML =
+            '<div class="focus-big-score">' + focusedPct + '%</div>'
+            + '<div class="attention-bar">'
+            + '<div class="attention-segment focused" style="width:' + focusedPct + '%"></div>'
+            + '<div class="attention-segment distracted" style="width:' + distractedPct + '%"></div>'
+            + '<div class="attention-segment away" style="width:' + awayPct + '%"></div>'
+            + '</div>'
+            + '<div class="attention-legend">'
+            + '<span class="attention-legend-item"><span class="attention-legend-dot focused"></span>专注 ' + focusedPct + '%</span>'
+            + '<span class="attention-legend-item"><span class="attention-legend-dot distracted"></span>分心 ' + distractedPct + '%</span>'
+            + '<span class="attention-legend-item"><span class="attention-legend-dot away"></span>离开 ' + awayPct + '%</span>'
+            + '</div>';
     },
 
     /* ----------------------------------------------------------------

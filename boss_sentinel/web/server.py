@@ -70,6 +70,9 @@ class WebServer:
         # 告警事件
         self._alert_subscribers: list = []
 
+        # 统计数据（会话级）
+        self._stats = self._empty_stats()
+
         # 初始化进度
         self._init_progress = 0
         self._init_message = ""
@@ -79,6 +82,19 @@ class WebServer:
     # ------------------------------------------------------------------
     # 路由注册
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _empty_stats() -> dict:
+        """创建空的统计数据字典"""
+        return {
+            "start_time": None,
+            "total_detections": 0,
+            "total_alerts": 0,
+            "detection_by_person": {},
+            "detection_timeline": [],
+            "hourly_detections": [0] * 24,
+            "attention_samples": {"focused": 0, "distracted": 0, "away": 0},
+        }
 
     def _setup_routes(self):
         """注册所有 API 路由"""
@@ -251,6 +267,32 @@ class WebServer:
                         result.append({"name": name, "photos": len(photos), "role": role})
             return JSONResponse(result)
 
+        @app.get("/api/stats")
+        async def get_stats():
+            """返回数据看板统计信息"""
+            stats = dict(self._stats)
+
+            # 计算运行时长
+            if stats["start_time"]:
+                stats["uptime_seconds"] = time.time() - stats["start_time"]
+            else:
+                stats["uptime_seconds"] = 0
+
+            # 独立识别人物数
+            stats["unique_persons"] = len(stats.get("detection_by_person", {}))
+
+            # 只返回最近 20 条时间线
+            stats["detection_timeline"] = list(stats.get("detection_timeline", [])[-20:])
+
+            # 番茄钟日报
+            if self._monitor and hasattr(self._monitor, '_pomodoro') and self._monitor._pomodoro:
+                try:
+                    stats["pomodoro_report"] = self._monitor._pomodoro.get_daily_report()
+                except Exception:
+                    pass
+
+            return JSONResponse(stats)
+
     # ------------------------------------------------------------------
     # 监控线程管理
     # ------------------------------------------------------------------
@@ -262,6 +304,10 @@ class WebServer:
         self._error_message = ""
         self._init_progress = 0
         self._init_message = "正在初始化..."
+
+        # 重置统计数据
+        self._stats = self._empty_stats()
+        self._stats["start_time"] = time.time()
 
         # 记录哪些特性已启用
         self._enabled_features = {
@@ -340,6 +386,32 @@ class WebServer:
         # 推送告警
         self._push_alert(person_name)
 
+        # --- 统计数据追踪 ---
+        self._stats["total_detections"] += 1
+        self._stats["detection_by_person"][person_name] = \
+            self._stats["detection_by_person"].get(person_name, 0) + 1
+
+        # 角色识别
+        role = "unknown"
+        if self._current_config:
+            for r, names in self._current_config.roles.items():
+                if person_name.lower() in [n.lower() for n in (names or [])]:
+                    role = r
+                    break
+
+        self._stats["detection_timeline"].append({
+            "time": time.strftime("%H:%M:%S"),
+            "person": person_name,
+            "role": role,
+        })
+        # 保留最近 100 条
+        if len(self._stats["detection_timeline"]) > 100:
+            self._stats["detection_timeline"] = self._stats["detection_timeline"][-100:]
+
+        # 按小时统计
+        hour = time.localtime().tm_hour
+        self._stats["hourly_detections"][hour] += 1
+
     def _frame_callback(self, frame: np.ndarray, feature_data: Optional[dict] = None):
         """帧回调 — 推送到 MJPEG 队列"""
         # 编码为 JPEG
@@ -349,6 +421,13 @@ class WebServer:
         # 更新特性状态（使用 is not None 而非 truthy 检查，因为空字典 {} 是 falsy）
         if feature_data is not None:
             self._feature_status = feature_data
+
+            # 采样注意力数据用于看板统计
+            hp = feature_data.get("head_pose")
+            if hp and "attention_status" in hp:
+                status = hp["attention_status"]
+                if status in self._stats["attention_samples"]:
+                    self._stats["attention_samples"][status] += 1
 
     # ------------------------------------------------------------------
     # MJPEG 生成器
@@ -423,6 +502,7 @@ class WebServer:
 
     def _push_alert(self, person_name: str):
         """推送告警事件"""
+        self._stats["total_alerts"] += 1
         alert = {
             "type": "detection",
             "person": person_name,
