@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Boss Sentinel (Anti-BossShield) is a Windows-based face recognition monitoring system that automatically locks the screen when specific individuals are detected. It uses YOLOv8 for face detection and FaceNet for face recognition, with both CLI and GUI interfaces. The system also includes optional creative features: shoulder surfing detection, intruder photo capture, pomodoro timer, MQTT smart home bridge, and drowsiness detection.
+Boss Sentinel (Anti-BossShield) is a Windows-based face recognition monitoring system that automatically locks the screen when specific individuals are detected. It uses YOLOv8 for face detection and FaceNet for face recognition, with a Web UI (Apple-style, browser-based) and CLI interfaces. The system also includes optional creative features: shoulder surfing detection, intruder photo capture, pomodoro timer, MQTT smart home bridge, and drowsiness detection.
 
 ## Common Development Commands
 
@@ -15,14 +15,19 @@ uv sync
 
 ### Running the System
 
-**GUI mode (recommended):**
+**Web UI mode (recommended) — auto-opens browser:**
 ```bash
 python -m boss_sentinel
 ```
 
-**Command-line mode:**
+**Command-line mode (no UI):**
 ```bash
 python -m boss_sentinel.main
+```
+
+**Web UI via CLI flag:**
+```bash
+python -m boss_sentinel.main --web
 ```
 
 ### Testing
@@ -55,8 +60,31 @@ cp config.json.example config.json
 | `locker.py` | `WindowsLocker` | Windows screen locking via LockWorkStation API |
 | `notifier.py` | `EmailNotifier` | Email alert notifications with SMTP_SSL support |
 | `logger.py` | `SentinelLogger` | Rotating file-based logging (RotatingFileHandler) |
-| `gui.py` | `MainWindow` | PyQt5 GUI with system tray, email config UI, feature status indicators |
-| `main.py` | `main()` | CLI entry point, directly uses SentinelMonitor |
+| `main.py` | `main()` | CLI entry point with `--web` flag for Web UI mode |
+
+### Web UI (boss_sentinel/web/)
+
+| File | Description |
+|------|-------------|
+| `web/server.py` | FastAPI backend — REST API, MJPEG video stream, SSE log/alert push, monitoring thread management |
+| `web/static/index.html` | Single-page application — Apple-style dark theme, Hero, video preview, feature dashboard, config panel, log viewer |
+| `web/static/style.css` | Apple-inspired CSS — glassmorphism cards, gradient text, toggle switches, responsive layout |
+| `web/static/app.js` | Frontend logic — API calls, SSE streams, MJPEG feed, Web Notification API, audio alerts |
+
+**API Endpoints:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/` | Web UI main page |
+| GET | `/api/status` | Monitoring status + feature data (JSON) |
+| POST | `/api/start` | Start monitoring (config JSON body) |
+| POST | `/api/stop` | Stop monitoring |
+| GET | `/api/config` | Read config.json |
+| PUT | `/api/config` | Update config.json |
+| GET | `/api/video` | MJPEG live video stream |
+| GET | `/api/logs` | Real-time log push (SSE) |
+| GET | `/api/alerts` | Real-time alert push (SSE) |
+| GET | `/api/faces` | List known faces |
 
 ### Optional Feature Modules
 
@@ -83,6 +111,26 @@ Camera Frame → FaceDetector → FaceTracker → FaceRecognizer → Match? → 
                               ↓                 ↓                  ↓
                      Shoulder Surfing    Intruder Capture    Pomodoro Timer
                      Drowsiness Detect   MQTT Bridge         Target Names
+```
+
+### Web UI Data Flow
+
+```
+SentinelMonitor (background thread)
+    │
+    ├── frame_callback(frame, feature_data)
+    │       ├── MJPEG queue → /api/video (multipart/x-mixed-replace)
+    │       └── feature_status dict → /api/status (polling)
+    │
+    ├── detection_callback(person_name)
+    │       ├── log buffer → /api/logs (SSE)
+    │       └── alert event → /api/alerts (SSE)
+    │
+    └── Browser Frontend
+            ├── <img src="/api/video"> → live video feed
+            ├── EventSource("/api/logs") → real-time log display
+            ├── EventSource("/api/alerts") → alert toast + notification
+            └── fetch("/api/...") → config CRUD, start/stop control
 ```
 
 ### Cooldown & Caching System
@@ -171,9 +219,9 @@ The system supports both:
 
 3. **Windows-only:** The system uses `ctypes.windll.user32.LockWorkStation()` for screen locking.
 
-4. **Chinese path support:** `__main__.py` pre-loads PyTorch DLLs and sets Qt plugin path to handle non-ASCII paths.
+4. **Chinese path support:** `__main__.py` pre-loads PyTorch DLLs to handle non-ASCII paths.
 
-5. **System Tray:** GUI minimizes to system tray, runs in background.
+5. **Web UI:** Browser-based interface at `http://localhost:8970`, auto-opens on startup. Uses FastAPI + MJPEG + SSE for real-time communication.
 
 6. **Model files:** YOLOv8 face model (`yolov8n-face.pt`) auto-downloads on first run.
 
@@ -184,9 +232,10 @@ The system supports both:
 ## Development Guidelines
 
 - Extend modular components (monitor.py, detector.py, recognizer.py)
-- Keep GUI ConfigGroup in sync with SentinelConfig fields
+- Keep Web UI config form fields in sync with SentinelConfig fields
 - Use `SentinelMonitor` as the entry point for new features
 - Camera IDs are 0-based integers (0 = default webcam)
 - New features should be optional (disabled by default, enabled via config toggle)
 - All modules should use `logging.getLogger(__name__)` instead of `print()`
+- Web UI static files are in `boss_sentinel/web/static/`
 - Test changes with `uv run pytest tests/ -v`

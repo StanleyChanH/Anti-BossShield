@@ -11,12 +11,13 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description="Boss哨兵系统")
     parser.add_argument("--config", default="config.json", help="配置文件路径")
-    parser.add_argument("--gui", action="store_true", help="启动GUI界面")
+    parser.add_argument("--web", action="store_true", help="启动 Web UI 界面")
+    parser.add_argument("--port", type=int, default=8970, help="Web UI 端口 (默认 8970)")
     args = parser.parse_args()
 
-    if args.gui:
-        from .gui import run_gui
-        run_gui()
+    if args.web:
+        from .web.server import run_server
+        run_server(port=args.port)
     else:
         with open(args.config, 'r', encoding='utf-8') as f:
             config_dict = json.load(f)

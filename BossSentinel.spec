@@ -2,13 +2,10 @@
 """
 Boss Sentinel PyInstaller 配置文件
 使用 onedir 模式避免 PyTorch DLL 加载问题
+Web UI 版本 — 无需 PyQt5
 """
 
 import os, pathlib, sys
-# Resolve PyQt5 plugins path using Python (handles Unicode correctly)
-_venv_site = str(pathlib.Path(sys.prefix) / "Lib" / "site-packages")
-_qt_plugins = os.path.join(_venv_site, "PyQt5", "Qt5", "plugins")
-_qt_translations = os.path.join(_venv_site, "PyQt5", "Qt5", "translations")
 
 a = Analysis(
     ['boss_sentinel\\__main__.py'],
@@ -16,8 +13,6 @@ a = Analysis(
     binaries=[],
     datas=[
         ('boss_sentinel', 'boss_sentinel'),
-        (_qt_plugins, 'PyQt5/Qt5/plugins'),
-        (_qt_translations, 'PyQt5/Qt5/translations'),
     ],
     hiddenimports=[
         'cv2',
@@ -26,26 +21,51 @@ a = Analysis(
         'torchvision',
         'ultralytics',
         'facenet_pytorch',
-        'PyQt5',
-        'PyQt5.QtCore',
-        'PyQt5.QtGui',
-        'PyQt5.QtWidgets',
-        # 新增功能模块
+        # Web UI 框架
+        'fastapi',
+        'uvicorn',
+        'uvicorn.logging',
+        'uvicorn.loops',
+        'uvicorn.loops.auto',
+        'uvicorn.protocols',
+        'uvicorn.protocols.http',
+        'uvicorn.protocols.http.auto',
+        'uvicorn.protocols.websockets',
+        'uvicorn.protocols.websockets.auto',
+        'uvicorn.lifespan',
+        'uvicorn.lifespan.on',
+        'starlette',
+        'starlette.routing',
+        'starlette.middleware',
+        'starlette.staticfiles',
+        'starlette.responses',
+        'anyio',
+        'anyio._backends',
+        'anyio._backends._asyncio',
+        'httpcore',
+        'httpcore._async',
+        'httpcore._sync',
+        'httptools',
+        'python_multipart',
+        # 功能模块
         'boss_sentinel.shoulder_surfing',
         'boss_sentinel.intruder_capture',
         'boss_sentinel.pomodoro',
         'boss_sentinel.mqtt_bridge',
         'boss_sentinel.drowsiness_detector',
+        'boss_sentinel.web',
+        'boss_sentinel.web.server',
     ],
     hookspath=['hooks'],
     hooksconfig={},
-    runtime_hooks=['hooks/runtime_hook_torch.py', 'hooks/runtime_hook_qt.py'],
+    runtime_hooks=['hooks/runtime_hook_torch.py'],
     excludes=[
         'tkinter',
         'matplotlib',
         'IPython',
         'jupyter',
         'notebook',
+        'PyQt5',
     ],
     noarchive=False,
     optimize=0,

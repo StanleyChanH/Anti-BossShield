@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Boss Sentinel</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="nav-bar glass">
+        <div class="nav-content">
+            <div class="nav-brand">
+                <span class="nav-icon">🛡️</span>
+                <span class="nav-title">Boss Sentinel</span>
+            </div>
+            <div class="nav-status">
+                <span class="status-dot" id="statusDot"></span>
+                <span class="status-text" id="statusText">就绪</span>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container">
+        <!-- Hero 区域 -->
+        <section class="hero">
+            <h1 class="hero-title">
+                <span class="gradient-text">智能守护</span>
+                <br>全天候防御
+            </h1>
+            <p class="hero-subtitle">基于 YOLOv8 + FaceNet 的实时人脸识别监控系统</p>
+            <div class="hero-actions">
+                <button class="btn btn-primary" id="btnStart" onclick="app.startMonitoring()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5,3 19,12 5,21"/>
+                    </svg>
+                    启动监控
+                </button>
+                <button class="btn btn-secondary" id="btnStop" onclick="app.stopMonitoring()" disabled>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <rect x="6" y="6" width="12" height="12" rx="2"/>
+                    </svg>
+                    停止监控
+                </button>
+            </div>
+        </section>
+
+        <!-- 视频预览 -->
+        <section class="section" id="videoSection">
+            <div class="section-header">
+                <h2 class="section-title">实时监控</h2>
+                <div class="video-badges">
+                    <span class="badge" id="badgeFps">-- FPS</span>
+                    <span class="badge" id="badgeStatus">离线</span>
+                </div>
+            </div>
+            <div class="video-card glass-card">
+                <div class="video-container" id="videoContainer">
+                    <img id="videoFeed" src="" alt="监控画面" class="video-feed" style="display:none">
+                    <div class="video-placeholder" id="videoPlaceholder">
+                        <div class="placeholder-icon">
+                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M23 7l-7 5 7 5V7z"/>
+                                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+                            </svg>
+                        </div>
+                        <p>等待摄像头连接</p>
+                        <p class="placeholder-hint">点击「启动监控」开始</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 特性仪表板 -->
+        <section class="section" id="featuresSection">
+            <h2 class="section-title">功能面板</h2>
+            <div class="features-grid">
+                <!-- 番茄钟 -->
+                <div class="feature-card glass-card" id="cardPomodoro">
+                    <div class="feature-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <circle cx="12" cy="13" r="9"/>
+                            <path d="M12 9v4l2 2"/>
+                            <path d="M9 2h6"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-name">番茄时钟</h3>
+                    <div class="pomodoro-display">
+                        <svg class="pomodoro-ring" viewBox="0 0 120 120">
+                            <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="6"/>
+                            <circle id="pomodoroRing" cx="60" cy="60" r="54" fill="none" stroke="var(--accent-orange)" stroke-width="6"
+                                    stroke-dasharray="339.3" stroke-dashoffset="0" stroke-linecap="round"
+                                    transform="rotate(-90 60 60)"/>
+                        </svg>
+                        <div class="pomodoro-time" id="pomodoroTime">--:--</div>
+                    </div>
+                    <div class="feature-detail" id="pomodoroDetail">未启用</div>
+                    <div class="feature-badge disabled" id="pomodoroBadge">未启用</div>
+                </div>
+
+                <!-- 疲劳检测 -->
+                <div class="feature-card glass-card" id="cardDrowsiness">
+                    <div class="feature-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-name">疲劳检测</h3>
+                    <div class="gauge-container">
+                        <div class="gauge">
+                            <div class="gauge-fill" id="drowsinessGauge"></div>
+                        </div>
+                        <div class="gauge-label" id="drowsinessLabel">--</div>
+                    </div>
+                    <div class="feature-detail" id="drowsinessDetail">未启用</div>
+                    <div class="feature-badge disabled" id="drowsinessBadge">未启用</div>
+                </div>
+
+                <!-- 隐私保护 -->
+                <div class="feature-card glass-card" id="cardShoulderSurfing">
+                    <div class="feature-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                            <path d="M9 12l2 2 4-4"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-name">隐私保护</h3>
+                    <div class="privacy-status" id="privacyStatus">
+                        <div class="privacy-indicator" id="privacyIndicator">
+                            <div class="privacy-ring"></div>
+                            <span class="privacy-icon">✓</span>
+                        </div>
+                    </div>
+                    <div class="feature-detail" id="shoulderDetail">未启用</div>
+                    <div class="feature-badge disabled" id="shoulderBadge">未启用</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 配置面板 -->
+        <section class="section" id="configSection">
+            <h2 class="section-title">系统配置</h2>
+
+            <!-- 基础配置 -->
+            <div class="config-group glass-card">
+                <div class="config-header" onclick="app.toggleSection('basicConfig')">
+                    <h3>基础配置</h3>
+                    <span class="config-toggle" id="toggleBasicConfig">▸</span>
+                </div>
+                <div class="config-body collapsed" id="basicConfig">
+                    <div class="config-grid">
+                        <div class="config-item">
+                            <label>模型路径</label>
+                            <input type="text" id="cfgModelPath" value="yolov8n-face.pt">
+                        </div>
+                        <div class="config-item">
+                            <label>人脸目录</label>
+                            <input type="text" id="cfgKnownFacesDir" value="known_faces">
+                        </div>
+                        <div class="config-item">
+                            <label>识别阈值</label>
+                            <input type="number" id="cfgThreshold" value="0.7" step="0.05" min="0" max="1">
+                        </div>
+                        <div class="config-item">
+                            <label>置信度阈值</label>
+                            <input type="number" id="cfgConfidence" value="0.7" step="0.05" min="0" max="1">
+                        </div>
+                        <div class="config-item">
+                            <label>帧跳过数</label>
+                            <input type="number" id="cfgFrameSkip" value="3" min="1">
+                        </div>
+                        <div class="config-item">
+                            <label>摄像头 ID</label>
+                            <input type="text" id="cfgCameras" value="0" placeholder="逗号分隔，如 0,1">
+                        </div>
+                        <div class="config-item">
+                            <label>锁屏冷却 (秒)</label>
+                            <input type="number" id="cfgLockCooldown" value="30" min="0">
+                        </div>
+                        <div class="config-item">
+                            <label>通知冷却 (秒)</label>
+                            <input type="number" id="cfgNotifyCooldown" value="60" min="0">
+                        </div>
+                        <div class="config-item">
+                            <label>日志文件</label>
+                            <input type="text" id="cfgLogFile" value="sentinel_log.txt">
+                        </div>
+                        <div class="config-item checkbox-item">
+                            <label class="toggle-label">
+                                <span>GPU 加速</span>
+                                <input type="checkbox" id="cfgUseGpu" checked>
+                                <span class="toggle-switch"></span>
+                            </label>
+                        </div>
+                        <div class="config-item checkbox-item">
+                            <label class="toggle-label">
+                                <span>告警声音</span>
+                                <input type="checkbox" id="cfgAlertSound" checked>
+                                <span class="toggle-switch"></span>
+                            </label>
+                        </div>
+                        <div class="config-item checkbox-item">
+                            <label class="toggle-label">
+                                <span>托盘通知</span>
+                                <input type="checkbox" id="cfgAlertTray" checked>
+                                <span class="toggle-switch"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 邮件通知配置 -->
+            <div class="config-group glass-card">
+                <div class="config-header" onclick="app.toggleSection('emailConfig')">
+                    <h3>邮件通知</h3>
+                    <span class="config-toggle" id="toggleEmailConfig">▸</span>
+                </div>
+                <div class="config-body collapsed" id="emailConfig">
+                    <div class="config-grid">
+                        <div class="config-item checkbox-item">
+                            <label class="toggle-label">
+                                <span>启用邮件通知</span>
+                                <input type="checkbox" id="cfgEmailEnabled">
+                                <span class="toggle-switch"></span>
+                            </label>
+                        </div>
+                        <div class="config-item">
+                            <label>SMTP 服务器</label>
+                            <input type="text" id="cfgSmtpServer" placeholder="smtp.example.com">
+                        </div>
+                        <div class="config-item">
+                            <label>SMTP 端口</label>
+                            <input type="number" id="cfgSmtpPort" value="587" min="1" max="65535">
+                        </div>
+                        <div class="config-item">
+                            <label>发件人邮箱</label>
+                            <input type="email" id="cfgEmailSender" placeholder="sender@example.com">
+                        </div>
+                        <div class="config-item">
+                            <label>邮箱密码</label>
+                            <input type="password" id="cfgEmailPassword">
+                        </div>
+                        <div class="config-item">
+                            <label>收件人邮箱</label>
+                            <input type="email" id="cfgEmailReceiver" placeholder="receiver@example.com">
+                        </div>
+                        <div class="config-item checkbox-item">
+                            <label class="toggle-label">
+                                <span>使用 SSL</span>
+                                <input type="checkbox" id="cfgEmailSsl">
+                                <span class="toggle-switch"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 扩展特性配置 -->
+            <div class="config-group glass-card">
+                <div class="config-header" onclick="app.toggleSection('featuresConfig')">
+                    <h3>扩展特性</h3>
+                    <span class="config-toggle" id="toggleFeaturesConfig">▸</span>
+                </div>
+                <div class="config-body collapsed" id="featuresConfig">
+                    <div class="config-grid">
+                        <div class="config-item checkbox-item">
+                            <label class="toggle-label">
+                                <span>防偷窥检测</span>
+                                <input type="checkbox" id="cfgShoulderSurfing">
+                                <span class="toggle-switch"></span>
+                            </label>
+                        </div>
+                        <div class="config-item checkbox-item">
+                            <label class="toggle-label">
+                                <span>入侵者拍照</span>
+                                <input type="checkbox" id="cfgIntruderCapture">
+                                <span class="toggle-switch"></span>
+                            </label>
+                        </div>
+                        <div class="config-item">
+                            <label>入侵照片目录</label>
+                            <input type="text" id="cfgIntruderSaveDir" value="intruder_photos">
+                        </div>
+                        <div class="config-item checkbox-item">
+                            <label class="toggle-label">
+                                <span>番茄钟</span>
+                                <input type="checkbox" id="cfgPomodoro">
+                                <span class="toggle-switch"></span>
+                            </label>
+                        </div>
+                        <div class="config-item">
+                            <label>专注时长 (分钟)</label>
+                            <input type="number" id="cfgFocusMinutes" value="25" min="1" max="120">
+                        </div>
+                        <div class="config-item">
+                            <label>休息时长 (分钟)</label>
+                            <input type="number" id="cfgBreakMinutes" value="5" min="1" max="60">
+                        </div>
+                        <div class="config-item checkbox-item">
+                            <label class="toggle-label">
+                                <span>MQTT 桥接</span>
+                                <input type="checkbox" id="cfgMqtt">
+                                <span class="toggle-switch"></span>
+                            </label>
+                        </div>
+                        <div class="config-item">
+                            <label>MQTT 服务器</label>
+                            <input type="text" id="cfgMqttBroker" placeholder="broker.example.com">
+                        </div>
+                        <div class="config-item">
+                            <label>MQTT 端口</label>
+                            <input type="number" id="cfgMqttPort" value="1883" min="1" max="65535">
+                        </div>
+                        <div class="config-item">
+                            <label>MQTT 主题前缀</label>
+                            <input type="text" id="cfgMqttTopic" value="boss_sentinel">
+                        </div>
+                        <div class="config-item checkbox-item">
+                            <label class="toggle-label">
+                                <span>疲劳检测</span>
+                                <input type="checkbox" id="cfgDrowsiness">
+                                <span class="toggle-switch"></span>
+                            </label>
+                        </div>
+                        <div class="config-item">
+                            <label>EAR 阈值</label>
+                            <input type="number" id="cfgEarThreshold" value="0.2" step="0.01" min="0" max="1">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 配置操作按钮 -->
+            <div class="config-actions">
+                <button class="btn btn-primary btn-sm" onclick="app.saveConfig()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+                        <polyline points="17 21 17 13 7 13 7 21"/>
+                        <polyline points="7 3 7 8 15 8"/>
+                    </svg>
+                    保存配置
+                </button>
+                <button class="btn btn-secondary btn-sm" onclick="app.loadConfig()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    加载配置
+                </button>
+            </div>
+        </section>
+
+        <!-- 日志面板 -->
+        <section class="section" id="logSection">
+            <div class="section-header">
+                <h2 class="section-title">检测日志</h2>
+                <button class="btn btn-ghost btn-sm" onclick="app.clearLogs()">清空</button>
+            </div>
+            <div class="log-card glass-card">
+                <div class="log-container" id="logContainer">
+                    <div class="log-entry">
+                        <span class="log-time">--:--:--</span>
+                        <span class="log-msg">等待系统启动...</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 告警闪烁遮罩 -->
+    <div class="alert-overlay" id="alertOverlay"></div>
+
+    <!-- 告警 Toast -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <footer class="footer">
+        <p>Boss Sentinel &mdash; 智能人脸识别监控系统</p>
+    </footer>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

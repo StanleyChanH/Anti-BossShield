@@ -18,14 +18,14 @@
 </p>
 
 <p align="center">
-  <em>🔍 实时人脸检测与识别 — GUI 模式运行截图</em>
+  <em>🔍 Apple 风格 Web UI — 实时人脸检测与识别</em>
 </p>
 
 ---
 
 ## 📖 简介
 
-Boss Sentinel 是一个基于深度学习的 Windows 人脸识别监控系统。它使用 YOLOv8 进行实时人脸检测，FaceNet 进行高精度人脸识别，当检测到预先设定的目标人物时会自动锁定电脑屏幕。除了核心的监控功能外，还提供了肩窥检测、入侵者拍照、番茄工作法、智能家居联动、疲劳检测等丰富的扩展功能。
+Boss Sentinel 是一个基于深度学习的 Windows 人脸识别监控系统。它使用 YOLOv8 进行实时人脸检测，FaceNet 进行高精度人脸识别，当检测到预先设定的目标人物时会自动锁定电脑屏幕。系统提供 **Apple 官网风格的 Web UI**，通过浏览器即可完成所有操作，界面现代美观。除了核心的监控功能外，还提供了肩窥检测、入侵者拍照、番茄工作法、智能家居联动、疲劳检测等丰富的扩展功能。
 
 > ⚠️ **免责声明**：本项目仅供学习和娱乐目的，请勿用于任何非法用途。
 
@@ -40,7 +40,7 @@ Boss Sentinel 是一个基于深度学习的 Windows 人脸识别监控系统。
 | 🚀 **智能跟踪** | 每摄像头独立跟踪器，识别缓存减少重复计算 |
 | 🔒 **自动锁屏** | 检测到目标人物时自动锁定 Windows，支持目标名单过滤 |
 | 📧 **邮件通知** | SMTP/SMTP_SSL 邮件报警，异步发送不阻塞主循环 |
-| 💻 **系统托盘** | PyQt5 GUI 支持最小化到托盘，后台静默运行 |
+| 🌐 **Web UI** | Apple 官网风格深色主题界面，MJPEG 实时视频流，SSE 日志推送，浏览器通知告警 |
 | 🔥 **配置热重载** | 运行时修改配置自动生效，无需重启 |
 | ⚡ **性能优化** | 自适应帧跳过、GPU 加速、批处理推理、向量化的嵌入比较 |
 
@@ -100,15 +100,32 @@ pip install mediapipe
 
 ### 运行
 
-**GUI 模式（推荐）：**
+**Web UI 模式（推荐）— 自动打开浏览器：**
 ```bash
 python -m boss_sentinel
 ```
 
-**命令行模式：**
+启动后自动在浏览器打开 `http://localhost:8970`，展示 Apple 风格的监控界面。
+
+**命令行模式（无 UI）：**
 ```bash
 python -m boss_sentinel.main
 ```
+
+## 🖥️ Web UI
+
+Boss Sentinel 提供 Apple 官网风格的 Web 界面，主要包含以下区域：
+
+| 区域 | 功能 |
+|------|------|
+| **Hero 状态栏** | 监控状态指示（绿色/红色/橙色）、启动/停止按钮 |
+| **实时监控** | MJPEG 视频流实时预览，FPS 和在线状态徽章 |
+| **功能仪表板** | 番茄钟倒计时环、疲劳检测 EAR 仪表盘、隐私保护状态指示器 |
+| **系统配置** | 手风琴式配置面板 — 基础配置、邮件通知、扩展特性，支持保存/加载 |
+| **检测日志** | 终端风格日志面板，SSE 实时推送，检测告警红色高亮 |
+| **告警系统** | 屏幕红色闪烁 + 浏览器通知 + 音频提示 |
+
+**技术栈：** FastAPI + 纯 HTML/CSS/JS（零前端框架依赖）
 
 ## ⚙️ 配置说明
 
@@ -152,7 +169,7 @@ python -m boss_sentinel.main
 ```
 boss_sentinel/
 ├── __init__.py
-├── __main__.py            # 包入口（含中文路径修复）
+├── __main__.py            # 包入口（Web UI 启动 + 中文路径修复）
 ├── config.py              # 配置管理 + 热重载 + 验证
 ├── detector.py            # YOLOv8 人脸检测（GPU/FP16 + 关键点）
 ├── recognizer.py          # FaceNet 人脸识别（批处理 + 对齐 + 向量化）
@@ -161,8 +178,13 @@ boss_sentinel/
 ├── locker.py              # Windows 锁屏 (LockWorkStation)
 ├── notifier.py            # 邮件通知（SMTP/SMTP_SSL + 异步）
 ├── logger.py              # 日志记录（RotatingFileHandler）
-├── gui.py                 # PyQt5 图形界面 + 功能状态指示
-├── main.py                # CLI 入口
+├── main.py                # CLI 入口（支持 --web 切换 Web UI）
+├── web/                   # 🌐 Web UI
+│   ├── server.py          # FastAPI 后端（REST API + MJPEG + SSE）
+│   └── static/
+│       ├── index.html     # Apple 风格单页应用
+│       ├── style.css      # 深色主题 + 毛玻璃效果 + 响应式
+│       └── app.js         # 前端交互（API 调用 + SSE + 通知 + 音频）
 ├── shoulder_surfing.py    # 🛡️ 肩窥探测器（可选）
 ├── intruder_capture.py    # 📸 入侵者拍照（可选）
 ├── pomodoro.py            # 🍅 番茄钟伴侣（可选）
@@ -186,12 +208,13 @@ uv run pytest tests/ -v
 uv run pyinstaller BossSentinel.spec
 ```
 
-生成的可执行文件位于 `dist/BossSentinel.exe`。
+生成的可执行文件位于 `dist/BossSentinel/` 目录。运行后自动启动 Web 服务器并打开浏览器。
 
 ## 💻 系统要求
 
 - **操作系统**: Windows 10/11
 - **Python**: 3.9 - 3.12
+- **浏览器**: Chrome / Edge / Firefox（现代浏览器）
 - **包管理**: [uv](https://docs.astral.sh/uv/)（推荐）或 pip
 - **硬件**: 摄像头（必需）、CUDA 兼容 GPU（可选，用于加速）
 - **可选**: paho-mqtt（MQTT 功能）、mediapipe（高精度疲劳检测）
@@ -201,8 +224,9 @@ uv run pyinstaller BossSentinel.spec
 - 首次运行会自动下载 `yolov8n-face.pt` 模型（约 6MB）
 - 配置文件 `config.json` 不会提交到 Git，请从示例文件复制
 - 日志文件自动轮转（最大 1MB，保留 5 个备份）
-- 所有扩展功能默认关闭，需在 config.json 中手动启用
+- 所有扩展功能默认关闭，需在 config.json 或 Web UI 中手动启用
 - 可选依赖缺失时功能会被静默禁用并记录警告日志
+- Web UI 默认监听 `http://localhost:8970`，可在代码中修改端口
 
 ## 🤝 贡献
 
@@ -222,7 +246,8 @@ uv run pyinstaller BossSentinel.spec
 
 - [YOLOv8](https://github.com/ultralytics/ultralytics) - 人脸检测
 - [FaceNet PyTorch](https://github.com/timesler/facenet-pytorch) - 人脸识别
-- [PyQt5](https://www.riverbankcomputing.com/software/pyqt/) - 图形界面
+- [FastAPI](https://fastapi.tiangolo.com/) - Web 后端框架
+- [Uvicorn](https://www.uvicorn.org/) - ASGI 服务器
 - [paho-mqtt](https://www.eclipse.org/paho/python.php) - MQTT 通信
 - [MediaPipe](https://mediapipe.dev/) - 面部网格（疲劳检测）
 

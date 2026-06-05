@@ -27,7 +27,9 @@ dependencies = [
     "torch>=2.0.0",
     "torchvision>=0.15.0",
     "Pillow>=9.0.0",
-    "PyQt5>=5.15.0,<5.15.11",
+    "fastapi>=0.128.8",
+    "uvicorn>=0.39.0",
+    "python-multipart>=0.0.20",
 ]
 
 [project.optional-dependencies]
