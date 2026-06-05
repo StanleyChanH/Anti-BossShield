@@ -106,23 +106,28 @@
                     <div class="feature-badge disabled" id="pomodoroBadge">未启用</div>
                 </div>
 
-                <!-- 疲劳检测 -->
-                <div class="feature-card glass-card" id="cardDrowsiness">
+                <!-- 注意力追踪 (头部姿态) -->
+                <div class="feature-card glass-card" id="cardHeadPose">
                     <div class="feature-icon">
                         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                            <circle cx="12" cy="12" r="3"/>
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                            <line x1="9" y1="9" x2="9.01" y2="9"/>
+                            <line x1="15" y1="9" x2="15.01" y2="9"/>
                         </svg>
                     </div>
-                    <h3 class="feature-name">疲劳检测</h3>
-                    <div class="gauge-container">
-                        <div class="gauge">
-                            <div class="gauge-fill" id="drowsinessGauge"></div>
+                    <h3 class="feature-name">注意力追踪</h3>
+                    <div class="headpose-display">
+                        <div class="attention-indicator" id="attentionIndicator">
+                            <span class="attention-icon" id="attentionIcon">👁️</span>
                         </div>
-                        <div class="gauge-label" id="drowsinessLabel">--</div>
+                        <div class="attention-info">
+                            <div class="attention-status" id="attentionStatus">--</div>
+                            <div class="focus-score" id="focusScore">专注度: --%</div>
+                        </div>
                     </div>
-                    <div class="feature-detail" id="drowsinessDetail">未启用</div>
-                    <div class="feature-badge disabled" id="drowsinessBadge">未启用</div>
+                    <div class="feature-detail" id="headPoseDetail">未启用</div>
+                    <div class="feature-badge disabled" id="headPoseBadge">未启用</div>
                 </div>
 
                 <!-- 隐私保护 -->
@@ -149,6 +154,28 @@
         <!-- 配置面板 -->
         <section class="section" id="configSection">
             <h2 class="section-title">系统配置</h2>
+
+            <!-- 身份角色配置 -->
+            <div class="config-group glass-card">
+                <div class="config-header" onclick="app.toggleSection('rolesConfig')">
+                    <h3>👤 身份角色</h3>
+                    <span class="config-toggle" id="toggleRolesConfig">▸</span>
+                </div>
+                <div class="config-body collapsed" id="rolesConfig">
+                    <div class="roles-info">
+                        <p class="config-hint">为已知人脸分配角色，不同角色触发不同行为：</p>
+                        <ul class="role-legend">
+                            <li><span class="role-badge role-owner">主人</span> 番茄钟跟随 · 注意力追踪</li>
+                            <li><span class="role-badge role-boss">Boss</span> 触发锁屏 · 通知 · 暂停番茄钟</li>
+                            <li><span class="role-badge role-colleague">同事</span> 已知但无特殊动作</li>
+                            <li><span class="role-badge role-unknown">陌生人</span> 触发入侵拍照 · 防偷窥告警</li>
+                        </ul>
+                    </div>
+                    <div id="rolesContainer" class="roles-grid">
+                        <p class="config-hint">加载中...</p>
+                    </div>
+                </div>
+            </div>
 
             <!-- 基础配置 -->
             <div class="config-group glass-card">
@@ -327,7 +354,18 @@
                         </div>
                         <div class="config-item checkbox-item">
                             <label class="toggle-label">
-                                <span>疲劳检测</span>
+                                <span>头部姿态追踪</span>
+                                <input type="checkbox" id="cfgHeadPose">
+                                <span class="toggle-switch"></span>
+                            </label>
+                        </div>
+                        <div class="config-item">
+                            <label>头部偏转阈值 (度)</label>
+                            <input type="number" id="cfgHeadPoseThreshold" value="30" step="5" min="10" max="60">
+                        </div>
+                        <div class="config-item checkbox-item">
+                            <label class="toggle-label">
+                                <span>疲劳检测 (旧版)</span>
                                 <input type="checkbox" id="cfgDrowsiness">
                                 <span class="toggle-switch"></span>
                             </label>

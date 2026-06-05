@@ -915,3 +915,166 @@ input[type="checkbox"]:checked + .toggle-switch::after {
         aspect-ratio: 4 / 3;
     }
 }
+
+/* ================================================================
+   头部姿态 / 注意力追踪卡片
+   ================================================================ */
+
+.headpose-display {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 0;
+}
+
+.attention-indicator {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(48, 209, 88, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.3s ease;
+    flex-shrink: 0;
+}
+
+.attention-indicator.away {
+    background: rgba(255, 69, 58, 0.15);
+}
+
+.attention-icon {
+    font-size: 24px;
+}
+
+.attention-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.attention-status {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--accent-green);
+    transition: color 0.3s ease;
+}
+
+.focus-score {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+/* ================================================================
+   角色系统
+   ================================================================ */
+
+.roles-info {
+    padding: 12px 0;
+}
+
+.config-hint {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0 0 8px 0;
+}
+
+.role-legend {
+    list-style: none;
+    padding: 0;
+    margin: 8px 0 16px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.role-legend li {
+    font-size: 13px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.role-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.role-badge.role-owner {
+    background: rgba(0, 113, 227, 0.2);
+    color: var(--accent-blue);
+}
+
+.role-badge.role-boss {
+    background: rgba(255, 69, 58, 0.2);
+    color: var(--accent-red);
+}
+
+.role-badge.role-colleague {
+    background: rgba(48, 209, 88, 0.2);
+    color: var(--accent-green);
+}
+
+.role-badge.role-unknown {
+    background: rgba(134, 134, 139, 0.2);
+    color: var(--text-secondary);
+}
+
+.roles-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.role-assignment {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: var(--radius-sm);
+    transition: background 0.2s;
+}
+
+.role-assignment:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.role-face-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    min-width: 80px;
+}
+
+.role-face-photos {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    flex: 1;
+}
+
+.role-select {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.role-select:focus {
+    border-color: var(--border-focus);
+}
+
+.role-select option {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}

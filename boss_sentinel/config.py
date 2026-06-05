@@ -50,6 +50,9 @@ class SentinelConfig:
     pomodoro_break_minutes: int = 5
     intruder_save_dir: str = 'intruder_photos'
     drowsiness_ear_threshold: float = 0.2
+    enable_head_pose: bool = False  # 头部姿态估计（替代疲劳检测，YOLOv8 精度可用）
+    head_pose_alert_threshold: float = 30.0  # 头部偏转角度阈值（度）
+    roles: Dict[str, List[str]] = field(default_factory=lambda: {"owner": [], "boss": []})
     enable_lock: bool = True  # 是否在检测到目标时执行锁屏（前端可动态切换）
 
     def __post_init__(self):
@@ -199,6 +202,9 @@ def save_config(config: SentinelConfig, file_path: str) -> None:
         'pomodoro_break_minutes': config.pomodoro_break_minutes,
         'intruder_save_dir': config.intruder_save_dir,
         'drowsiness_ear_threshold': config.drowsiness_ear_threshold,
+        'enable_head_pose': config.enable_head_pose,
+        'head_pose_alert_threshold': config.head_pose_alert_threshold,
+        'roles': config.roles,
         'enable_lock': config.enable_lock
     }
 

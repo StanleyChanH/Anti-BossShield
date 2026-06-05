@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 from boss_sentinel.tracker import Track
 from boss_sentinel.config import SentinelConfig
 from boss_sentinel.monitor import SentinelMonitor
+from boss_sentinel.role_manager import RoleManager
 
 
 # ---------------------------------------------------------------------------
@@ -43,6 +44,8 @@ def _make_monitor(**config_overrides):
     mon._drowsiness = None
     mon._feature_status = {}
     mon._runtime_lock_enabled = config.enable_lock
+    mon._role_manager = RoleManager(config.roles)
+    mon._head_pose = None
     return mon
 
 

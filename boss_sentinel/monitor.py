@@ -11,6 +11,7 @@ from .locker import WindowsLocker
 from .logger import SentinelLogger
 from .config import SentinelConfig, ConfigWatcher
 from .tracker import FaceTracker
+from .role_manager import RoleManager
 
 # Optional feature modules — gracefully degrade if not available
 try:
@@ -37,6 +38,11 @@ try:
     from .drowsiness_detector import DrowsinessDetector
 except ImportError:
     DrowsinessDetector = None  # type: ignore[assignment,misc]
+
+try:
+    from .head_pose import HeadPoseEstimator
+except ImportError:
+    HeadPoseEstimator = None  # type: ignore[assignment,misc]
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +103,10 @@ class SentinelMonitor:
         self._pomodoro: Optional[Any] = None
         self._mqtt: Optional[Any] = None
         self._drowsiness: Optional[Any] = None
+        self._head_pose: Optional[Any] = None
+
+        # --- Role management ---
+        self._role_manager = RoleManager(config.roles)
 
         # Latest feature status snapshot (for frame_callback)
         self._feature_status: Dict[str, Any] = {}
@@ -184,7 +194,21 @@ class SentinelMonitor:
             self._drowsiness = DrowsinessDetector(
                 ear_threshold=cfg.drowsiness_ear_threshold,
             )
-            logger.info("Drowsiness detector enabled")
+            logger.info("Drowsiness detector enabled (deprecated, consider enable_head_pose)")
+
+        if cfg.enable_head_pose and HeadPoseEstimator is not None:
+            self._head_pose = HeadPoseEstimator(
+                yaw_threshold=cfg.head_pose_alert_threshold,
+            )
+            logger.info("Head pose estimator enabled (yaw_threshold=%.1f°)", cfg.head_pose_alert_threshold)
+
+        # Set shoulder surfing authorized names from roles
+        if self._shoulder_surfing is not None:
+            owner_names = self._role_manager.get_owner_names()
+            colleague_names = self._role_manager.get_role_members("colleague")
+            authorized = owner_names + colleague_names
+            if authorized:
+                self._shoulder_surfing.update_authorized(authorized)
 
     # Issue 3: get or create per-camera tracker
     def _get_tracker(self, camera_idx: int) -> FaceTracker:
@@ -234,6 +258,15 @@ class SentinelMonitor:
             self.logger.log("Config changed, reloading...")
             old_faces_dir = self.config.known_faces_dir
             self.config = new_config
+
+            # 更新角色映射
+            self._role_manager.update_roles(new_config.roles)
+
+            # 更新防偷窥授权名单
+            if self._shoulder_surfing is not None:
+                owner_names = self._role_manager.get_owner_names()
+                colleague_names = self._role_manager.get_role_members("colleague")
+                self._shoulder_surfing.update_authorized(owner_names + colleague_names)
 
             # 更新通知器
             self.notifier = self._create_notifier(new_config.notification_email)
@@ -475,6 +508,26 @@ class SentinelMonitor:
         thread.start()
         return True
 
+    def _is_defensive_target(self, person_name: str, role: str) -> bool:
+        """判断某人是否应触发防御操作（锁屏、通知）。
+
+        逻辑：
+            - 如果配置了任何角色（roles 非空），则只有 boss 角色触发
+            - 如果完全没有角色配置，回退到 target_names 配置
+            - 如果 target_names 也为空，所有已识别人脸触发（兼容旧版）
+        """
+        all_roles = self._role_manager.get_all_roles()
+        has_any_roles = any(names for names in all_roles.values())
+
+        if has_any_roles:
+            return role == "boss"
+
+        # Legacy: use target_names
+        target_names = self.config.target_names
+        if not target_names:
+            return True  # 无 target_names = 所有已识别 = 目标
+        return person_name in target_names
+
     # ------------------------------------------------------------------
     # Feature hook helpers
     # ------------------------------------------------------------------
@@ -503,27 +556,12 @@ class SentinelMonitor:
             logger.debug("Shoulder surfing check failed: %s", exc)
 
     def _on_user_recognized(self, person_name: str) -> None:
-        """Handle a recognized user appearing."""
-        # Pomodoro: user is present
-        if self._pomodoro is not None:
-            try:
-                self._pomodoro.on_user_present()
-                status = self._pomodoro.get_status()
-                self._feature_status['pomodoro'] = {
-                    'state': status.state.value,
-                    'remaining_seconds': status.remaining_seconds,
-                    'completed_pomodoros': status.completed_pomodoros,
-                    'focus_ratio': status.focus_ratio,
-                }
-            except Exception as exc:
-                logger.debug("Pomodoro update failed: %s", exc)
+        """Handle a recognized user appearing (legacy, kept for compatibility).
 
-        # MQTT: publish presence
-        if self._mqtt is not None:
-            try:
-                self._mqtt.publish_presence(person_name, is_present=True)
-            except Exception as exc:
-                logger.debug("MQTT publish presence failed: %s", exc)
+        Note: Pomodoro and MQTT are now handled directly in process_frame
+        with role-aware logic. This method is kept for backward compatibility.
+        """
+        pass
 
     def _on_no_faces_detected(self, frame: np.ndarray, camera_idx: int) -> None:
         """Handle the case when no faces are detected (user absent)."""
@@ -531,13 +569,7 @@ class SentinelMonitor:
         if self._pomodoro is not None:
             try:
                 self._pomodoro.on_user_absent()
-                status = self._pomodoro.get_status()
-                self._feature_status['pomodoro'] = {
-                    'state': status.state.value,
-                    'remaining_seconds': status.remaining_seconds,
-                    'completed_pomodoros': status.completed_pomodoros,
-                    'focus_ratio': status.focus_ratio,
-                }
+                self._update_pomodoro_status()
             except Exception as exc:
                 logger.debug("Pomodoro absent update failed: %s", exc)
 
@@ -583,6 +615,48 @@ class SentinelMonitor:
                     break
         except Exception as exc:
             logger.debug("Drowsiness update failed: %s", exc)
+
+    def _update_head_pose(self, detections: list, frame_shape: tuple) -> None:
+        """Run head pose estimation on detected faces."""
+        if self._head_pose is None:
+            return
+        try:
+            for i, det in enumerate(detections):
+                keypoints = None
+                if isinstance(det, dict):
+                    keypoints = det.get('keypoints')
+                elif det is not None and hasattr(det, 'keypoints'):
+                    keypoints = det.keypoints
+
+                if keypoints is None:
+                    continue
+
+                result = self._head_pose.estimate(keypoints, frame_shape, face_index=i)
+                if result is not None:
+                    self._feature_status['head_pose'] = {
+                        'yaw': result.yaw,
+                        'pitch': result.pitch,
+                        'roll': result.roll,
+                        'looking_at_screen': result.looking_at_screen,
+                        'attention_status': result.attention_status,
+                        'focus_score': self._head_pose.get_focus_score(face_index=i),
+                        'confidence': result.confidence,
+                    }
+                    break  # Only process the primary face
+        except Exception as exc:
+            logger.debug("Head pose update failed: %s", exc)
+
+    def _update_pomodoro_status(self) -> None:
+        """Update feature_status with current pomodoro state."""
+        if self._pomodoro is None:
+            return
+        status = self._pomodoro.get_status()
+        self._feature_status['pomodoro'] = {
+            'state': status.state.value,
+            'remaining_seconds': status.remaining_seconds,
+            'completed_pomodoros': status.completed_pomodoros,
+            'focus_ratio': status.focus_ratio,
+        }
 
     def get_feature_status(self) -> Dict[str, Any]:
         """Return the latest feature status snapshot.
@@ -654,22 +728,39 @@ class SentinelMonitor:
 
         any_should_lock = False
 
+        # --- Role-aware processing ---
+        owner_present = False
+        boss_detected = False
+        owner_names = self._role_manager.get_owner_names()
+
         for track, person_name, similarity in recognized_tracks:
+            role = self._role_manager.resolve(person_name)
             all_face_names.append(person_name)
 
-            should_lock, should_notify = self._handle_detection(person_name, similarity, camera_idx)
+            # Track presence by role
+            if role == "owner":
+                owner_present = True
+            elif role == "boss":
+                boss_detected = True
 
-            if should_lock:
-                any_should_lock = True
+            # Defensive actions: boss role or legacy target_names fallback
+            if self._is_defensive_target(person_name, role):
+                should_lock, should_notify = self._handle_detection(
+                    person_name, similarity, camera_idx,
+                )
 
-            if should_notify:
-                # Issue 7: async email via thread
-                self._send_notification(person_name, similarity, camera_idx)
+                if should_lock:
+                    any_should_lock = True
 
+                if should_notify:
+                    # Issue 7: async email via thread
+                    self._send_notification(person_name, similarity, camera_idx)
+
+                detected = True
+
+        # Legacy: if no roles configured, any recognized face is "detected"
+        if not detected and recognized_tracks and not self._role_manager.get_boss_names():
             detected = True
-
-            # --- Feature hook: recognized user present ---
-            self._on_user_recognized(person_name)
 
         # Also count unrecognized tracked faces
         for track_id, track in tracks.items():
@@ -678,17 +769,48 @@ class SentinelMonitor:
             if not track.recognized:
                 all_face_names.append(None)
 
-        # --- Feature hook: shoulder surfing (multiple faces) ---
+        # --- Feature hooks (role-aware) ---
+
+        # Pomodoro: only owner presence drives the timer
+        if self._pomodoro is not None:
+            try:
+                if owner_present or (not owner_names and recognized_tracks):
+                    # Owner present (or legacy: any recognized face)
+                    self._pomodoro.on_user_present()
+                elif boss_detected and not owner_present:
+                    # Boss present without owner → pause (meeting context)
+                    self._pomodoro.on_user_absent()
+                self._update_pomodoro_status()
+            except Exception as exc:
+                logger.debug("Pomodoro update failed: %s", exc)
+
+        # MQTT: publish presence
+        if self._mqtt is not None:
+            try:
+                for track, person_name, similarity in recognized_tracks:
+                    self._mqtt.publish_presence(person_name, is_present=True)
+            except Exception as exc:
+                logger.debug("MQTT publish presence failed: %s", exc)
+
+        # Shoulder surfing (multiple faces)
         self._check_shoulder_surfing(all_face_names)
 
-        # --- Feature hook: drowsiness (after face detection) ---
+        # Head pose estimation (replaces drowsiness)
+        self._update_head_pose(detections, frame.shape)
+
+        # Legacy drowsiness (still available if enabled)
         self._update_drowsiness(detections)
 
-        # --- Feature hook: intruder capture (unknown face + no recognized user) ---
-        if not detected and len(detections) > 0:
+        # Intruder capture: only for unknown faces when owner is absent
+        has_unknown = any(
+            not track.recognized
+            for tid, track in tracks.items()
+            if track.disappeared == 0
+        )
+        if has_unknown and not owner_present:
             self._on_unknown_faces(frame)
 
-        # Issue 10: lock only for target names (checked inside _handle_detection)
+        # Lock screen: only for boss/defensive targets
         if any_should_lock and self._should_lock():
             if self._runtime_lock_enabled:
                 self.locker.lock()
@@ -818,6 +940,13 @@ class SentinelMonitor:
             except Exception:
                 pass
             self._drowsiness = None
+
+        if self._head_pose is not None:
+            try:
+                self._head_pose.reset()
+            except Exception:
+                pass
+            self._head_pose = None
 
         self._shoulder_surfing = None
         self._intruder_capture = None

@@ -351,53 +351,46 @@ const app = {
             pomoBadge.className = 'feature-badge disabled';
         }
 
-        // 疲劳检测
-        const drow = features.drowsiness;
-        const drowBadge = document.getElementById('drowsinessBadge');
-        const drowGauge = document.getElementById('drowsinessGauge');
-        const drowLabel = document.getElementById('drowsinessLabel');
-        const drowDetail = document.getElementById('drowsinessDetail');
+        // 头部姿态 / 注意力追踪
+        const hp = features.head_pose;
+        const hpBadge = document.getElementById('headPoseBadge');
+        const hpDetail = document.getElementById('headPoseDetail');
+        const hpAttention = document.getElementById('attentionStatus');
+        const hpFocus = document.getElementById('focusScore');
+        const hpIndicator = document.getElementById('attentionIndicator');
+        const hpIcon = document.getElementById('attentionIcon');
 
-        if (drow) {
-            const ear = drow.ear_value >= 0 ? drow.ear_value : 0;
-            const earPercent = Math.min(100, Math.round(ear * 200));
-            drowGauge.style.width = earPercent + '%';
-
-            const level = drow.alert_level;
-            if (level === 'normal') {
-                drowGauge.style.background = 'var(--accent-green)';
-                drowLabel.textContent = '正常';
-                drowLabel.style.color = 'var(--accent-green)';
-                drowBadge.textContent = '正常';
-                drowBadge.className = 'feature-badge active';
-            } else if (level === 'drowsy') {
-                drowGauge.style.background = 'var(--accent-orange)';
-                drowLabel.textContent = '疲劳';
-                drowLabel.style.color = 'var(--accent-orange)';
-                drowBadge.textContent = '疲劳';
-                drowBadge.className = 'feature-badge warning';
-            } else {
-                drowGauge.style.background = 'var(--accent-red)';
-                drowLabel.textContent = '严重';
-                drowLabel.style.color = 'var(--accent-red)';
-                drowBadge.textContent = '严重';
-                drowBadge.className = 'feature-badge danger';
-            }
-            drowDetail.textContent = `EAR: ${ear >= 0 ? ear.toFixed(2) : 'N/A'} | 眨眼: ${drow.blink_rate.toFixed(0)}/min`;
-        } else if (isFeatureEnabled('drowsiness')) {
-            drowGauge.style.width = '0%';
-            drowLabel.textContent = '--';
-            drowLabel.style.color = 'var(--accent-blue)';
-            drowDetail.textContent = '已启用，等待检测...';
-            drowBadge.textContent = '已启用';
-            drowBadge.className = 'feature-badge active';
+        if (hp) {
+            const statusMap = {
+                focused: { icon: '🎯', text: '专注', color: 'var(--accent-green)', badgeClass: 'active' },
+                distracted: { icon: '👀', text: '分心', color: 'var(--accent-orange)', badgeClass: 'warning' },
+                away: { icon: '🚶', text: '离开', color: 'var(--accent-red)', badgeClass: 'danger' },
+            };
+            const info = statusMap[hp.attention_status] || statusMap.focused;
+            hpIcon.textContent = info.icon;
+            hpAttention.textContent = info.text;
+            hpAttention.style.color = info.color;
+            hpIndicator.className = 'attention-indicator ' + (hp.looking_at_screen ? '' : 'away');
+            hpFocus.textContent = '专注度: ' + Math.round(hp.focus_score * 100) + '%';
+            hpDetail.textContent = `偏转: ${hp.yaw.toFixed(0)}° / ${hp.pitch.toFixed(0)}° | ${hp.attention_status}`;
+            hpBadge.textContent = info.text;
+            hpBadge.className = 'feature-badge ' + info.badgeClass;
+        } else if (isFeatureEnabled('head_pose')) {
+            hpIcon.textContent = '👁️';
+            hpAttention.textContent = '--';
+            hpAttention.style.color = 'var(--accent-blue)';
+            hpFocus.textContent = '专注度: --%';
+            hpDetail.textContent = '已启用，等待检测...';
+            hpBadge.textContent = '已启用';
+            hpBadge.className = 'feature-badge active';
         } else {
-            drowGauge.style.width = '0%';
-            drowLabel.textContent = '--';
-            drowLabel.style.color = '';
-            drowDetail.textContent = '未启用';
-            drowBadge.textContent = '未启用';
-            drowBadge.className = 'feature-badge disabled';
+            hpIcon.textContent = '👁️';
+            hpAttention.textContent = '--';
+            hpAttention.style.color = '';
+            hpFocus.textContent = '专注度: --%';
+            hpDetail.textContent = '未启用';
+            hpBadge.textContent = '未启用';
+            hpBadge.className = 'feature-badge disabled';
         }
 
         // 隐私保护 / 防偷窥
@@ -569,7 +562,10 @@ const app = {
             mqtt_topic_prefix: val('cfgMqttTopic'),
             enable_drowsiness: checked('cfgDrowsiness'),
             drowsiness_ear_threshold: num('cfgEarThreshold'),
+            enable_head_pose: checked('cfgHeadPose'),
+            head_pose_alert_threshold: num('cfgHeadPoseThreshold'),
             enable_lock: checked('cfgEnableLock'),
+            roles: this._readRolesForm(),
         };
 
         // 邮件配置
@@ -630,6 +626,71 @@ const app = {
         val('cfgMqttTopic', cfg.mqtt_topic_prefix || 'boss_sentinel');
         check('cfgDrowsiness', !!cfg.enable_drowsiness);
         val('cfgEarThreshold', cfg.drowsiness_ear_threshold ?? 0.2);
+        check('cfgHeadPose', !!cfg.enable_head_pose);
+        val('cfgHeadPoseThreshold', cfg.head_pose_alert_threshold ?? 30);
+
+        // 角色配置
+        this._fillRolesForm(cfg.roles || {});
+        this._loadFaces();
+    },
+
+    /* ----------------------------------------------------------------
+       角色管理
+       ---------------------------------------------------------------- */
+
+    _loadFaces() {
+        fetch('/api/faces').then(r => r.json()).then(faces => {
+            this._renderRolesGrid(faces);
+        }).catch(() => {
+            const container = document.getElementById('rolesContainer');
+            if (container) container.innerHTML = '<p class="config-hint">无法加载人脸列表</p>';
+        });
+    },
+
+    _renderRolesGrid(faces) {
+        const container = document.getElementById('rolesContainer');
+        if (!container) return;
+
+        if (!faces || faces.length === 0) {
+            container.innerHTML = '<p class="config-hint">known_faces/ 目录中暂无已知人脸。请添加照片后重试。</p>';
+            return;
+        }
+
+        const roles = this._currentRoles || {};
+        let html = '';
+        for (const face of faces) {
+            const currentRole = face.role || ((roles.owner || []).includes(face.name) ? 'owner'
+                : (roles.boss || []).includes(face.name) ? 'boss'
+                : (roles.colleague || []).includes(face.name) ? 'colleague' : '');
+            html += '<div class="role-assignment">'
+                + '<span class="role-face-name">' + this._escHtml(face.name) + '</span>'
+                + '<span class="role-face-photos">' + face.photos + ' 张照片</span>'
+                + '<select class="role-select" data-name="' + this._escHtml(face.name) + '">'
+                + '<option value=""' + (!currentRole ? ' selected' : '') + '>未分配</option>'
+                + '<option value="owner"' + (currentRole === 'owner' ? ' selected' : '') + '>🏠 主人</option>'
+                + '<option value="boss"' + (currentRole === 'boss' ? ' selected' : '') + '>👔 Boss</option>'
+                + '<option value="colleague"' + (currentRole === 'colleague' ? ' selected' : '') + '>👥 同事</option>'
+                + '</select>'
+                + '</div>';
+        }
+        container.innerHTML = html;
+    },
+
+    _readRolesForm() {
+        const roles = { owner: [], boss: [], colleague: [] };
+        const selects = document.querySelectorAll('.role-select');
+        selects.forEach(sel => {
+            const name = sel.dataset.name;
+            const role = sel.value;
+            if (role && roles[role]) {
+                roles[role].push(name);
+            }
+        });
+        return roles;
+    },
+
+    _fillRolesForm(roles) {
+        this._currentRoles = roles || {};
     },
 
     /* ----------------------------------------------------------------

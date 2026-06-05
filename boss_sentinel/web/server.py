@@ -101,6 +101,7 @@ class WebServer:
                 "features": self._feature_status,
                 "enabled_features": self._enabled_features,
                 "lock_enabled": self._current_config.enable_lock if self._current_config else True,
+                "roles": self._current_config.roles if self._current_config else {},
                 "init_progress": self._init_progress,
                 "init_message": self._init_message,
             })
@@ -226,8 +227,16 @@ class WebServer:
         @app.get("/api/faces")
         async def list_faces():
             faces_dir = "known_faces"
+            roles_config = {}
             if self._current_config:
                 faces_dir = self._current_config.known_faces_dir
+                roles_config = self._current_config.roles
+
+            # Build name -> role mapping
+            name_to_role = {}
+            for role, names in roles_config.items():
+                for name in names:
+                    name_to_role[name.lower()] = role
 
             result = []
             if os.path.isdir(faces_dir):
@@ -238,7 +247,8 @@ class WebServer:
                             f for f in os.listdir(person_dir)
                             if f.lower().endswith((".jpg", ".jpeg", ".png", ".bmp"))
                         ]
-                        result.append({"name": name, "photos": len(photos)})
+                        role = name_to_role.get(name.lower(), "")
+                        result.append({"name": name, "photos": len(photos), "role": role})
             return JSONResponse(result)
 
     # ------------------------------------------------------------------
@@ -260,6 +270,7 @@ class WebServer:
             "pomodoro": config.enable_pomodoro,
             "mqtt": config.enable_mqtt,
             "drowsiness": config.enable_drowsiness,
+            "head_pose": config.enable_head_pose,
         }
         enabled_names = [k for k, v in self._enabled_features.items() if v]
         if enabled_names:

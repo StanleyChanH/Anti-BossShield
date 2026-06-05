@@ -90,27 +90,57 @@ cp config.json.example config.json
 
 | File | Class | Description |
 |------|-------|-------------|
+| `role_manager.py` | `RoleManager` | Maps recognized person names to roles (owner/boss/colleague/unknown) |
+| `head_pose.py` | `HeadPoseEstimator` | Estimates head orientation (yaw/pitch/roll) using solvePnP with 5 keypoints, tracks attention/focus |
 | `shoulder_surfing.py` | `ShoulderSurfingDetector` | Detects unauthorized people looking over the user's shoulder |
 | `intruder_capture.py` | `IntruderCapture` | Captures photos of unknown faces during user absence with timestamp watermark |
-| `pomodoro.py` | `PomodoroTimer` | Pomodoro timer that auto-starts/pauses based on user presence |
+| `pomodoro.py` | `PomodoroTimer` | Pomodoro timer that auto-starts/pauses based on owner presence |
 | `mqtt_bridge.py` | `MQTTBridge` | Publishes presence status to MQTT broker for Home Assistant integration |
-| `drowsiness_detector.py` | `DrowsinessDetector` | Detects drowsiness using Eye Aspect Ratio (EAR) |
+| `drowsiness_detector.py` | `DrowsinessDetector` | Detects drowsiness using EAR (legacy, limited accuracy with YOLOv8 5-keypoint) |
+
+### Role System (Identity-Based Feature Separation)
+
+The system uses a role-based identity model to differentiate behavior for different people:
+
+**Roles:**
+- **owner** — The computer user. Drives pomodoro timer, attention tracking, focus score.
+- **boss** — Target persons who trigger defensive actions: lock screen, email notification, pomodoro pause.
+- **colleague** — Known persons with no special actions. Authorized for shoulder surfing.
+- **unknown** — Unrecognized faces. Triggers intruder capture, shoulder surfing alerts.
+
+**Configuration** (`roles` field in config.json):
+```json
+{"roles": {"owner": ["stanley"], "boss": ["boss_name"], "colleague": ["coworker"]}}
+```
+
+**Feature behavior by role:**
+
+| Feature | Owner Present | Boss Detected | Unknown Detected | Owner Absent |
+|---------|--------------|---------------|------------------|--------------|
+| Lock Screen | — | ✅ Lock | — | — |
+| Pomodoro | Start/resume | Pause (meeting) | — | Pause |
+| Shoulder Surfing | Monitor | Suppressed | ⚠️ Alert | Off |
+| Intruder Capture | — | — | ✅ Photo | ✅ Photo |
+| Head Pose | Attention tracking | Approach detection | Behavior tracking | Off |
+| MQTT | owner_present | boss_detected | unknown_present | all_away |
+
+**Backward compatibility:** If `roles.boss` is empty, the system falls back to `target_names`. If both are empty, all recognized faces trigger lock (legacy behavior). If `roles.owner` is empty, any recognized face drives pomodoro (legacy).
 
 ### Data Flow
 
 ```
-Camera Frame → FaceDetector → FaceTracker → FaceRecognizer → Match? → WindowsLocker
-                  ↓                              ↓
-              (YOLOv8)                     (FaceNet)
-              + keypoints                   + alignment
-              + FP16 GPU                    + batch inference
+Camera Frame → FaceDetector → FaceTracker → FaceRecognizer → RoleManager → Match? → WindowsLocker
+                  ↓                              ↓               ↓
+              (YOLOv8)                     (FaceNet)     (owner/boss/
+              + keypoints                   + alignment    colleague/
+              + FP16 GPU                    + batch inf.   unknown)
                                                ↓
                                     Compare with known_faces/
                                                ↓
                               ┌─────────────────┼──────────────────┐
                               ↓                 ↓                  ↓
                      Shoulder Surfing    Intruder Capture    Pomodoro Timer
-                     Drowsiness Detect   MQTT Bridge         Target Names
+                     Head Pose Est.      MQTT Bridge         Drowsiness (legacy)
 ```
 
 ### Web UI Data Flow
@@ -165,13 +195,16 @@ SentinelMonitor (background thread)
 - `enable_intruder_capture`: Enable intruder photo capture (default: false)
 - `enable_pomodoro`: Enable pomodoro timer (default: false)
 - `enable_mqtt`: Enable MQTT bridge (default: false)
-- `enable_drowsiness`: Enable drowsiness detection (default: false)
+- `enable_drowsiness`: Enable drowsiness detection (default: false, legacy)
+- `enable_head_pose`: Enable head pose estimation / attention tracking (default: false)
 
 **Feature configuration fields:**
 - `mqtt_broker`, `mqtt_port`, `mqtt_topic_prefix`: MQTT connection settings
 - `pomodoro_focus_minutes`, `pomodoro_break_minutes`: Pomodoro timing
 - `intruder_save_dir`: Directory for intruder photos
-- `drowsiness_ear_threshold`: Eye Aspect Ratio threshold for drowsiness
+- `drowsiness_ear_threshold`: Eye Aspect Ratio threshold for drowsiness (legacy)
+- `head_pose_alert_threshold`: Yaw angle threshold (degrees) for "looking away" detection
+- `roles`: Dict mapping role names to person name lists (e.g., `{"owner": ["alice"], "boss": ["bob"]}`)
 
 **Validation:**
 - `__post_init__` validates types and ranges (threshold 0-1, frame_skip >= 1, etc.)
