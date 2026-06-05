@@ -256,7 +256,21 @@ class SentinelMonitor:
 
         self.logger.log("Loading models...")
         self.detector = FaceDetector(self.config.model_path, self.config.use_gpu)
-        device = 'cuda' if self.config.use_gpu else 'cpu'
+
+        # Check CUDA availability before using GPU
+        if self.config.use_gpu:
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    device = 'cuda'
+                else:
+                    device = 'cpu'
+                    self.logger.log("CUDA not available, falling back to CPU")
+            except ImportError:
+                device = 'cpu'
+        else:
+            device = 'cpu'
+
         self.recognizer = FaceRecognizer(self.config.known_faces_dir, device=device)
         self.cameras = self._init_cameras(self.config.cameras)
         self._models_loaded = True
