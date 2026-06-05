@@ -149,10 +149,16 @@ class WebServer:
             except Exception:
                 enabled = True
 
+            enabled = bool(enabled)
+
+            # 更新运行时标志（直接作用于当前运行的 monitor）
+            if self._monitor is not None:
+                self._monitor._runtime_lock_enabled = enabled
             if self._current_config is not None:
-                self._current_config.enable_lock = bool(enabled)
+                self._current_config.enable_lock = enabled
+
             self._add_log(f"[系统] 锁屏功能已{'开启' if enabled else '关闭'}")
-            return JSONResponse({"ok": True, "enabled": bool(enabled)})
+            return JSONResponse({"ok": True, "enabled": enabled})
 
         # --- 配置 ---
 

@@ -42,6 +42,7 @@ def _make_monitor(**config_overrides):
     mon._mqtt = None
     mon._drowsiness = None
     mon._feature_status = {}
+    mon._runtime_lock_enabled = config.enable_lock
     return mon
 
 

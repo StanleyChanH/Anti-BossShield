@@ -320,9 +320,15 @@ const app = {
         const pomoRing = document.getElementById('pomodoroRing');
 
         if (pomo) {
-            const mins = Math.floor(pomo.remaining_seconds / 60);
-            const secs = pomo.remaining_seconds % 60;
-            pomoTime.textContent = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+            const total = Math.floor(pomo.remaining_seconds);
+            const hrs = Math.floor(total / 3600);
+            const mins = Math.floor((total % 3600) / 60);
+            const secs = total % 60;
+            if (hrs > 0) {
+                pomoTime.textContent = hrs + ':' + String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+            } else {
+                pomoTime.textContent = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+            }
             pomoDetail.textContent = `状态: ${pomo.state} | 已完成: ${pomo.completed_pomodoros}`;
 
             // 更新进度环 (周长 339.3)

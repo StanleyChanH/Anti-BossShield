@@ -101,6 +101,9 @@ class SentinelMonitor:
         # Latest feature status snapshot (for frame_callback)
         self._feature_status: Dict[str, Any] = {}
 
+        # 运行时锁屏开关（可由 Web UI 动态切换，独立于配置文件）
+        self._runtime_lock_enabled: bool = config.enable_lock
+
         self._init_optional_features()
 
         # 配置热重载
@@ -687,7 +690,7 @@ class SentinelMonitor:
 
         # Issue 10: lock only for target names (checked inside _handle_detection)
         if any_should_lock and self._should_lock():
-            if self.config.enable_lock:
+            if self._runtime_lock_enabled:
                 self.locker.lock()
                 self._last_lock_time = time.time()
                 self.logger.log(f"Screen locked, cooldown {self.config.lock_cooldown}s")
