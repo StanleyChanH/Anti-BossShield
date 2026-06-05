@@ -13,6 +13,14 @@
 
 </div>
 
+<p align="center">
+  <img src="docs/images/preview.png" alt="Boss Sentinel 运行截图" width="720">
+</p>
+
+<p align="center">
+  <em>🔍 实时人脸检测与识别 — GUI 模式运行截图</em>
+</p>
+
 ---
 
 ## 📖 简介

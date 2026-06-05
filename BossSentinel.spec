@@ -22,6 +22,12 @@ a = Analysis(
         'PyQt5.QtCore',
         'PyQt5.QtGui',
         'PyQt5.QtWidgets',
+        # 新增功能模块
+        'boss_sentinel.shoulder_surfing',
+        'boss_sentinel.intruder_capture',
+        'boss_sentinel.pomodoro',
+        'boss_sentinel.mqtt_bridge',
+        'boss_sentinel.drowsiness_detector',
     ],
     hookspath=['hooks'],
     hooksconfig={},
