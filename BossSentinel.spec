@@ -4,12 +4,20 @@ Boss Sentinel PyInstaller 配置文件
 使用 onedir 模式避免 PyTorch DLL 加载问题
 """
 
+import os, pathlib, sys
+# Resolve PyQt5 plugins path using Python (handles Unicode correctly)
+_venv_site = str(pathlib.Path(sys.prefix) / "Lib" / "site-packages")
+_qt_plugins = os.path.join(_venv_site, "PyQt5", "Qt5", "plugins")
+_qt_translations = os.path.join(_venv_site, "PyQt5", "Qt5", "translations")
+
 a = Analysis(
     ['boss_sentinel\\__main__.py'],
     pathex=[],
     binaries=[],
     datas=[
         ('boss_sentinel', 'boss_sentinel'),
+        (_qt_plugins, 'PyQt5/Qt5/plugins'),
+        (_qt_translations, 'PyQt5/Qt5/translations'),
     ],
     hiddenimports=[
         'cv2',
@@ -31,7 +39,7 @@ a = Analysis(
     ],
     hookspath=['hooks'],
     hooksconfig={},
-    runtime_hooks=['hooks/runtime_hook_torch.py'],
+    runtime_hooks=['hooks/runtime_hook_torch.py', 'hooks/runtime_hook_qt.py'],
     excludes=[
         'tkinter',
         'matplotlib',
