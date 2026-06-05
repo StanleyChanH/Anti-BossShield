@@ -12,12 +12,38 @@
     "notify_cooldown": 60,
     "alert_sound": true,
     "alert_tray": true,
+    "target_names": [],
+    "tracker_max_disappeared": 30,
+    "away_timeout": 30.0,
     "notification_email": {
         "sender": "your_email@example.com",
         "receiver": "recipient@example.com",
         "smtp_server": "smtp.example.com",
         "smtp_port": 587,
         "username": "your_email@example.com",
-        "password": "your_password"
-    }
+        "password": "your_password",
+        "use_ssl": false
+    },
+
+    "_comment_features": "=== 以下为可选扩展功能，默认全部关闭 ===",
+    "enable_shoulder_surfing": false,
+    "enable_intruder_capture": false,
+    "enable_pomodoro": false,
+    "enable_mqtt": false,
+    "enable_drowsiness": false,
+
+    "_comment_mqtt": "MQTT 智能家居桥接（需安装 paho-mqtt）",
+    "mqtt_broker": "",
+    "mqtt_port": 1883,
+    "mqtt_topic_prefix": "boss_sentinel",
+
+    "_comment_pomodoro": "番茄工作法计时器",
+    "pomodoro_focus_minutes": 25,
+    "pomodoro_break_minutes": 5,
+
+    "_comment_intruder": "入侵者拍照保存目录",
+    "intruder_save_dir": "intruder_photos",
+
+    "_comment_drowsiness": "疲劳检测 EAR 阈值（越小越敏感）",
+    "drowsiness_ear_threshold": 0.2
 }

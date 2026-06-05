@@ -3,6 +3,7 @@ import json
 import time
 from typing import Dict, Any, List, Optional, Callable
 from dataclasses import dataclass, field
+import dataclasses
 
 @dataclass
 class EmailConfig:
@@ -13,6 +14,7 @@ class EmailConfig:
     smtp_port: int
     username: str
     password: str
+    use_ssl: bool = False
 
 @dataclass
 class SentinelConfig:
@@ -32,11 +34,38 @@ class SentinelConfig:
     notify_cooldown: int = 60  # 同一人通知冷却秒数
     alert_sound: bool = True    # 是否播放告警声音
     alert_tray: bool = True     # 是否显示托盘通知
+    # 新增配置
+    target_names: List[str] = field(default_factory=list)
+    tracker_max_disappeared: int = 30
+    away_timeout: float = 30.0
+    enable_shoulder_surfing: bool = False
+    enable_intruder_capture: bool = False
+    enable_pomodoro: bool = False
+    enable_mqtt: bool = False
+    enable_drowsiness: bool = False
+    mqtt_broker: str = ''
+    mqtt_port: int = 1883
+    mqtt_topic_prefix: str = 'boss_sentinel'
+    pomodoro_focus_minutes: int = 25
+    pomodoro_break_minutes: int = 5
+    intruder_save_dir: str = 'intruder_photos'
+    drowsiness_ear_threshold: float = 0.2
 
     def __post_init__(self):
         """配置验证"""
         if self.cameras is None:
             self.cameras = [0]
+
+        if not isinstance(self.threshold, (int, float)) or not (0.0 <= float(self.threshold) <= 1.0):
+            raise ValueError(f"threshold must be a float between 0.0 and 1.0, got {self.threshold!r}")
+        if not isinstance(self.confidence_threshold, (int, float)) or not (0.0 <= float(self.confidence_threshold) <= 1.0):
+            raise ValueError(f"confidence_threshold must be a float between 0.0 and 1.0, got {self.confidence_threshold!r}")
+        if not isinstance(self.frame_skip, int) or self.frame_skip < 1:
+            raise ValueError(f"frame_skip must be an int >= 1, got {self.frame_skip!r}")
+        if not isinstance(self.lock_cooldown, (int, float)) or self.lock_cooldown < 0:
+            raise ValueError(f"lock_cooldown must be a number >= 0, got {self.lock_cooldown!r}")
+        if not isinstance(self.notify_cooldown, (int, float)) or self.notify_cooldown < 0:
+            raise ValueError(f"notify_cooldown must be a number >= 0, got {self.notify_cooldown!r}")
 
         if not os.path.exists(self.known_faces_dir):
             os.makedirs(self.known_faces_dir, exist_ok=True)
@@ -91,8 +120,8 @@ class ConfigWatcher:
         try:
             current_mtime = os.path.getmtime(self.config_path)
             if current_mtime > self._last_mtime:
-                self._last_mtime = current_mtime
                 new_config = self._load_from_file()
+                self._last_mtime = current_mtime
                 self._current_config = new_config
 
                 if self.on_change:
@@ -110,28 +139,32 @@ class ConfigWatcher:
         return self._current_config
 
 
-def load_config(config_dict: Dict[str, Any]) -> SentinelConfig:
-    """从字典加载配置"""
+def load_config(config_dict) -> SentinelConfig:
+    """从字典或文件路径加载配置
+
+    Args:
+        config_dict: 配置字典或 JSON 文件路径字符串
+    """
+    # 支持传入文件路径字符串
+    if isinstance(config_dict, str):
+        with open(config_dict, 'r', encoding='utf-8') as f:
+            config_dict = json.load(f)
+
     email_config = None
     if config_dict.get('notification_email'):
-        email_config = EmailConfig(**config_dict['notification_email'])
+        email_data = {k: v for k, v in config_dict['notification_email'].items() if v is not None}
+        email_config = EmailConfig(**email_data)
 
-    return SentinelConfig(
-        known_faces_dir=config_dict.get('known_faces_dir'),
-        model_path=config_dict.get('model_path'),
-        threshold=config_dict.get('threshold'),
-        confidence_threshold=config_dict.get('confidence_threshold'),
-        show_feed=config_dict.get('show_feed'),
-        cameras=config_dict.get('cameras'),
-        log_file=config_dict.get('log_file'),
-        notification_email=email_config,
-        frame_skip=config_dict.get('frame_skip', 3),
-        use_gpu=config_dict.get('use_gpu', True),
-        lock_cooldown=config_dict.get('lock_cooldown', 30),
-        notify_cooldown=config_dict.get('notify_cooldown', 60),
-        alert_sound=config_dict.get('alert_sound', True),
-        alert_tray=config_dict.get('alert_tray', True)
-    )
+    # Filter None values and unknown keys from config dict
+    valid_fields = set(SentinelConfig.__dataclass_fields__.keys())
+    config_dict = {k: v for k, v in config_dict.items() if v is not None and k in valid_fields}
+
+    # Merge with field defaults for missing keys
+    defaults = {f.name: f.default for f in SentinelConfig.__dataclass_fields__.values() if f.default is not dataclasses.MISSING}
+    defaults_factory = {f.name: f.default_factory() for f in SentinelConfig.__dataclass_fields__.values() if f.default_factory is not dataclasses.MISSING}
+    merged = {**defaults, **defaults_factory, **config_dict, 'notification_email': email_config}
+
+    return SentinelConfig(**merged)
 
 
 def save_config(config: SentinelConfig, file_path: str) -> None:
@@ -149,7 +182,22 @@ def save_config(config: SentinelConfig, file_path: str) -> None:
         'lock_cooldown': config.lock_cooldown,
         'notify_cooldown': config.notify_cooldown,
         'alert_sound': config.alert_sound,
-        'alert_tray': config.alert_tray
+        'alert_tray': config.alert_tray,
+        'target_names': config.target_names,
+        'tracker_max_disappeared': config.tracker_max_disappeared,
+        'away_timeout': config.away_timeout,
+        'enable_shoulder_surfing': config.enable_shoulder_surfing,
+        'enable_intruder_capture': config.enable_intruder_capture,
+        'enable_pomodoro': config.enable_pomodoro,
+        'enable_mqtt': config.enable_mqtt,
+        'enable_drowsiness': config.enable_drowsiness,
+        'mqtt_broker': config.mqtt_broker,
+        'mqtt_port': config.mqtt_port,
+        'mqtt_topic_prefix': config.mqtt_topic_prefix,
+        'pomodoro_focus_minutes': config.pomodoro_focus_minutes,
+        'pomodoro_break_minutes': config.pomodoro_break_minutes,
+        'intruder_save_dir': config.intruder_save_dir,
+        'drowsiness_ear_threshold': config.drowsiness_ear_threshold
     }
 
     if config.notification_email:
@@ -159,7 +207,8 @@ def save_config(config: SentinelConfig, file_path: str) -> None:
             'smtp_server': config.notification_email.smtp_server,
             'smtp_port': config.notification_email.smtp_port,
             'username': config.notification_email.username,
-            'password': config.notification_email.password
+            'password': config.notification_email.password,
+            'use_ssl': config.notification_email.use_ssl
         }
 
     with open(file_path, 'w', encoding='utf-8') as f:

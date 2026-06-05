@@ -23,7 +23,7 @@ def _make_monitor(**config_overrides):
     mon.notifier = None
     mon.running = False
     mon.frame_count = 0
-    mon.tracker = MagicMock()
+    mon.trackers = {}
     mon._callback = None
     mon._last_lock_time = 0.0
     mon._last_notify_time = {}
@@ -33,6 +33,15 @@ def _make_monitor(**config_overrides):
     mon.recognizer = None
     mon.cameras = []
     mon._config_watcher = None
+    mon._no_face_count = {}
+    mon._overlay_cache = {}
+    # Optional feature module stubs (None = disabled)
+    mon._shoulder_surfing = None
+    mon._intruder_capture = None
+    mon._pomodoro = None
+    mon._mqtt = None
+    mon._drowsiness = None
+    mon._feature_status = {}
     return mon
 
 
@@ -143,7 +152,9 @@ class TestProcessFrameCachedCallback:
         mon._callback = MagicMock()
         # detector 必须返回检测框，否则 process_frame 在 tracker.update([]) 后直接返回 False
         mon.detector = MagicMock()
-        mon.detector.detect.return_value = [[50, 50, 200, 200, 0.9]]
+        mon.detector.detect.return_value = [
+            {'bbox': [50, 50, 200, 200], 'confidence': 0.9, 'keypoints': None}
+        ]
         return mon
 
     def test_cached_track_triggers_callback(self):
@@ -154,7 +165,7 @@ class TestProcessFrameCachedCallback:
         # 我们用真实的 FaceTracker 来跟踪
         from boss_sentinel.tracker import FaceTracker
         real_tracker = FaceTracker(max_disappeared=30)
-        mon.tracker = real_tracker
+        mon.trackers[0] = real_tracker
 
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
 
@@ -180,7 +191,7 @@ class TestProcessFrameCachedCallback:
 
         from boss_sentinel.tracker import FaceTracker
         real_tracker = FaceTracker(max_disappeared=30)
-        mon.tracker = real_tracker
+        mon.trackers[0] = real_tracker
 
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
 
