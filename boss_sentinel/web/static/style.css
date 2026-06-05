@@ -221,6 +221,30 @@ body {
     flex-wrap: wrap;
 }
 
+.hero-toggle {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+}
+
+.hero-toggle .toggle-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 20px;
+    border-radius: 980px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-color);
+    font-size: 14px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.hero-toggle .toggle-label:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
 /* --- 按钮 --- */
 .btn {
     display: inline-flex;

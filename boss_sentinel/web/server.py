@@ -64,6 +64,8 @@ class WebServer:
 
         # 特性状态
         self._feature_status: dict = {}
+        # 已启用的特性列表（来自配置）
+        self._enabled_features: dict = {}
 
         # 告警事件
         self._alert_subscribers: list = []
@@ -97,6 +99,8 @@ class WebServer:
                 "status": self._status,
                 "error": self._error_message,
                 "features": self._feature_status,
+                "enabled_features": self._enabled_features,
+                "lock_enabled": self._current_config.enable_lock if self._current_config else True,
                 "init_progress": self._init_progress,
                 "init_message": self._init_message,
             })
@@ -135,6 +139,20 @@ class WebServer:
 
             self._stop_monitor()
             return JSONResponse({"ok": True})
+
+        @app.post("/api/toggle_lock")
+        async def toggle_lock(request: Request):
+            """动态切换锁屏开关（无需重启监控）"""
+            try:
+                body = await request.json()
+                enabled = body.get("enabled", True)
+            except Exception:
+                enabled = True
+
+            if self._current_config is not None:
+                self._current_config.enable_lock = bool(enabled)
+            self._add_log(f"[系统] 锁屏功能已{'开启' if enabled else '关闭'}")
+            return JSONResponse({"ok": True, "enabled": bool(enabled)})
 
         # --- 配置 ---
 
@@ -228,6 +246,19 @@ class WebServer:
         self._error_message = ""
         self._init_progress = 0
         self._init_message = "正在初始化..."
+
+        # 记录哪些特性已启用
+        self._enabled_features = {
+            "shoulder_surfing": config.enable_shoulder_surfing,
+            "intruder_capture": config.enable_intruder_capture,
+            "pomodoro": config.enable_pomodoro,
+            "mqtt": config.enable_mqtt,
+            "drowsiness": config.enable_drowsiness,
+        }
+        enabled_names = [k for k, v in self._enabled_features.items() if v]
+        if enabled_names:
+            self._add_log(f"[系统] 已启用特性: {', '.join(enabled_names)}")
+
         self._add_log("[系统] 正在启动监控...")
 
         def _run():
@@ -267,6 +298,7 @@ class WebServer:
                 if self._status != "error":
                     self._status = "idle"
                 self._feature_status = {}
+                self._enabled_features = {}
                 self._add_log("[系统] 监控已停止")
 
         self._monitor_thread = threading.Thread(target=_run, daemon=True)
@@ -297,8 +329,8 @@ class WebServer:
         _, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
         self._frame_queue.append(jpeg.tobytes())
 
-        # 更新特性状态
-        if feature_data:
+        # 更新特性状态（使用 is not None 而非 truthy 检查，因为空字典 {} 是 falsy）
+        if feature_data is not None:
             self._feature_status = feature_data
 
     # ------------------------------------------------------------------

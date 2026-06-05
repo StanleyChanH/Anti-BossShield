@@ -687,9 +687,12 @@ class SentinelMonitor:
 
         # Issue 10: lock only for target names (checked inside _handle_detection)
         if any_should_lock and self._should_lock():
-            self.locker.lock()
-            self._last_lock_time = time.time()
-            self.logger.log(f"Screen locked, cooldown {self.config.lock_cooldown}s")
+            if self.config.enable_lock:
+                self.locker.lock()
+                self._last_lock_time = time.time()
+                self.logger.log(f"Screen locked, cooldown {self.config.lock_cooldown}s")
+            else:
+                self.logger.log(f"Target detected but lock disabled, cooldown {self.config.lock_cooldown}s")
 
         return detected
 

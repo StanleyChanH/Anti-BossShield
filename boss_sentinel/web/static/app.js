@@ -61,6 +61,22 @@ const app = {
         }
     },
 
+    async toggleLock(enabled) {
+        try {
+            const res = await this._api('POST', '/api/toggle_lock', { enabled });
+            const data = await res.json();
+            if (data.ok) {
+                this._showToast(
+                    enabled ? '锁屏已开启' : '锁屏已关闭',
+                    enabled ? '检测到目标时将自动锁屏' : '检测到目标时仅记录日志，不执行锁屏',
+                    'info'
+                );
+            }
+        } catch (e) {
+            this._showToast('操作失败', e.message, 'alert');
+        }
+    },
+
     /* ----------------------------------------------------------------
        配置管理
        ---------------------------------------------------------------- */
@@ -280,8 +296,12 @@ const app = {
         }
 
         // 更新特性仪表板
-        if (data.features) {
-            this._updateFeatures(data.features);
+        this._updateFeatures(data.features || {}, data.enabled_features || {});
+
+        // 同步锁屏开关状态
+        const lockToggle = document.getElementById('cfgEnableLock');
+        if (lockToggle && data.lock_enabled !== undefined) {
+            lockToggle.checked = data.lock_enabled;
         }
     },
 
@@ -289,7 +309,9 @@ const app = {
        特性仪表板更新
        ---------------------------------------------------------------- */
 
-    _updateFeatures(features) {
+    _updateFeatures(features, enabledFeatures) {
+        const isFeatureEnabled = (name) => enabledFeatures[name] === true;
+
         // 番茄钟
         const pomo = features.pomodoro;
         const pomoBadge = document.getElementById('pomodoroBadge');
@@ -309,6 +331,12 @@ const app = {
 
             pomoBadge.textContent = pomo.state;
             pomoBadge.className = 'feature-badge ' + (pomo.state === 'focus' ? 'active' : pomo.state === 'break' ? 'warning' : 'disabled');
+        } else if (isFeatureEnabled('pomodoro')) {
+            pomoTime.textContent = '--:--';
+            pomoDetail.textContent = '已启用，等待数据...';
+            pomoRing.style.strokeDashoffset = 339.3;
+            pomoBadge.textContent = '已启用';
+            pomoBadge.className = 'feature-badge active';
         } else {
             pomoTime.textContent = '--:--';
             pomoDetail.textContent = '未启用';
@@ -350,6 +378,13 @@ const app = {
                 drowBadge.className = 'feature-badge danger';
             }
             drowDetail.textContent = `EAR: ${ear >= 0 ? ear.toFixed(2) : 'N/A'} | 眨眼: ${drow.blink_rate.toFixed(0)}/min`;
+        } else if (isFeatureEnabled('drowsiness')) {
+            drowGauge.style.width = '0%';
+            drowLabel.textContent = '--';
+            drowLabel.style.color = 'var(--accent-blue)';
+            drowDetail.textContent = '已启用，等待检测...';
+            drowBadge.textContent = '已启用';
+            drowBadge.className = 'feature-badge active';
         } else {
             drowGauge.style.width = '0%';
             drowLabel.textContent = '--';
@@ -380,6 +415,12 @@ const app = {
                 ssBadge.textContent = '安全';
                 ssBadge.className = 'feature-badge active';
             }
+        } else if (isFeatureEnabled('shoulder_surfing')) {
+            ssIndicator.className = 'privacy-indicator';
+            ssIcon.textContent = '✓';
+            ssDetail.textContent = '已启用，等待检测...';
+            ssBadge.textContent = '已启用';
+            ssBadge.className = 'feature-badge active';
         } else {
             ssIndicator.className = 'privacy-indicator';
             ssIcon.textContent = '✓';
@@ -522,6 +563,7 @@ const app = {
             mqtt_topic_prefix: val('cfgMqttTopic'),
             enable_drowsiness: checked('cfgDrowsiness'),
             drowsiness_ear_threshold: num('cfgEarThreshold'),
+            enable_lock: checked('cfgEnableLock'),
         };
 
         // 邮件配置

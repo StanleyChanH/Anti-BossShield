@@ -50,6 +50,7 @@ class SentinelConfig:
     pomodoro_break_minutes: int = 5
     intruder_save_dir: str = 'intruder_photos'
     drowsiness_ear_threshold: float = 0.2
+    enable_lock: bool = True  # 是否在检测到目标时执行锁屏（前端可动态切换）
 
     def __post_init__(self):
         """配置验证"""
@@ -197,7 +198,8 @@ def save_config(config: SentinelConfig, file_path: str) -> None:
         'pomodoro_focus_minutes': config.pomodoro_focus_minutes,
         'pomodoro_break_minutes': config.pomodoro_break_minutes,
         'intruder_save_dir': config.intruder_save_dir,
-        'drowsiness_ear_threshold': config.drowsiness_ear_threshold
+        'drowsiness_ear_threshold': config.drowsiness_ear_threshold,
+        'enable_lock': config.enable_lock
     }
 
     if config.notification_email:

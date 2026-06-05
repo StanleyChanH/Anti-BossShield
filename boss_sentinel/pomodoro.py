@@ -126,6 +126,9 @@ class PomodoroTimer:
         Returns:
             A :class:`PomodoroStatus` dataclass.
         """
+        # 检查当前阶段是否已完成（自动转换到下一阶段）
+        self._check_phase_completion()
+
         if self._state == PomodoroState.IDLE:
             return PomodoroStatus(
                 state=PomodoroState.IDLE,
